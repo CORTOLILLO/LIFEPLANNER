@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<title>Life Planner</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy: #1a1a2e;
+    --navy2: #16213e;
+    --navy3: #0f3460;
+    --gold: #e2b96f;
+    --gold2: #f0c878;
+    --cream: #faf9f7;
+    --stone: #f0ede8;
+    --ink: #1a1a1a;
+    --muted: #888;
+
+    --ex-bg: #fff8f0; --ex-ac: #f97316; --ex-lt: #fed7aa;
+    --cl-bg: #f0fdf4; --cl-ac: #22c55e; --cl-lt: #bbf7d0;
+    --mp-bg: #f0f9ff; --mp-ac: #0ea5e9; --mp-lt: #bae6fd;
+    --pr-bg: #fdf4ff; --pr-ac: #a855f7; --pr-lt: #e9d5ff;
+    --hb-bg: #fff1f2; --hb-ac: #f43f5e; --hb-lt: #fecdd3;
+  }
+
+  html, body { height: 100%; background: var(--cream); color: var(--ink); font-family: 'DM Sans', sans-serif; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+
+  /* ── Header ── */
+  #header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy2) 55%, var(--navy3) 100%);
+    color: #fff;
+    padding: env(safe-area-inset-top, 0px) 16px 0;
+    box-shadow: 0 2px 28px rgba(0,0,0,0.4);
+  }
+  #header-top { display: flex; justify-content: space-between; align-items: flex-start; padding: 16px 0 10px; }
+  .app-title-sub { font-size: 10px; letter-spacing: 3px; opacity: .45; text-transform: uppercase; margin-bottom: 2px; }
+  .app-title { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 900; letter-spacing: -0.5px; }
+  #week-nav { text-align: right; }
+  #week-label { font-size: 11px; opacity: .5; margin-bottom: 6px; }
+  #nav-btns { display: flex; gap: 5px; justify-content: flex-end; }
+  .nav-btn {
+    background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
+    color: rgba(255,255,255,.75); border-radius: 7px; padding: 4px 11px;
+    font-size: 11px; cursor: pointer; font-family: 'DM Sans', sans-serif;
+    font-weight: 500; letter-spacing: .4px; transition: background .15s;
+  }
+  .nav-btn:hover { background: rgba(255,255,255,.18); }
+
+  /* ── View tabs ── */
+  #view-tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+  .view-tab {
+    flex: 1; padding: 7px 0; border-radius: 22px; border: none; cursor: pointer;
+    font-size: 11px; font-weight: 600; letter-spacing: .5px;
+    font-family: 'DM Sans', sans-serif; transition: all .2s;
+    background: rgba(255,255,255,.1); color: rgba(255,255,255,.6);
+  }
+  .view-tab.active { background: var(--gold); color: var(--navy); }
+
+  /* ── Day tabs ── */
+  #day-tabs { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; }
+  #day-tabs::-webkit-scrollbar { display: none; }
+  .day-tab {
+    min-width: 50px; flex-shrink: 0; padding: 6px 3px; border-radius: 11px;
+    border: 2px solid transparent; background: rgba(255,255,255,.04);
+    color: rgba(255,255,255,.42); cursor: pointer; text-align: center;
+    transition: all .2s; font-family: 'DM Sans', sans-serif;
+  }
+  .day-tab.today-tab { background: rgba(255,255,255,.08); color: rgba(255,255,255,.9); }
+  .day-tab.active { border-color: var(--gold); background: rgba(226,185,111,.18); color: var(--gold); }
+  .day-tab-name { font-size: 9px; letter-spacing: 1px; font-weight: 700; margin-bottom: 2px; }
+  .day-tab-today-label { font-size: 7px; opacity: .65; margin-bottom: 2px; }
+  .ring-wrap { width: 28px; height: 28px; border-radius: 50%; margin: 2px auto 0; display: flex; align-items: center; justify-content: center; }
+  .ring-inner { width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,.48); display: flex; align-items: center; justify-content: center; font-size: 7px; font-weight: 700; color: var(--gold); }
+
+  /* ── Main content ── */
+  #main { padding-top: 0; padding-bottom: 80px; }
+
+  /* ── Section cards ── */
+  .section-card {
+    margin: 0 14px 11px; border-radius: 16px; overflow: hidden;
+    border: 2px solid var(--lt); background: #fff; transition: border-color .2s;
+  }
+  .section-card.open { border-color: var(--ac); }
+  .section-header {
+    width: 100%; padding: 13px 15px; background: #fff; border: none;
+    display: flex; align-items: center; gap: 10px; cursor: pointer; text-align: left;
+    transition: background .2s; font-family: 'DM Sans', sans-serif;
+  }
+  .section-card.open .section-header { background: var(--bg); }
+  .section-icon { font-size: 19px; }
+  .section-label { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: var(--ac); }
+  .section-sublabel { font-size: 10px; opacity: .42; margin-top: 2px; }
+  .section-badge { font-size: 12px; font-weight: 700; color: var(--ac); margin-right: 4px; }
+  .section-badge.dim { color: #bbb; }
+  .chevron { font-size: 18px; opacity: .32; transition: transform .2s; margin-left: auto; }
+  .section-card.open .chevron { transform: rotate(90deg); }
+  .section-body { display: none; padding: 6px 15px 14px; background: var(--bg); }
+  .section-card.open .section-body { display: block; }
+
+  /* ── Check rows ── */
+  .check-row { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+  .check-btn {
+    width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+    border: 2px solid #e0e0e0; background: transparent;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all .15s; font-size: 15px; color: #fff; font-weight: 700;
+  }
+  .check-btn.has-val { border-color: var(--ac); }
+  .check-btn.checked { background: var(--ac); border-color: var(--ac); }
+  .check-label {
+    flex: 1; font-size: 14px; min-height: 20px; color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+  }
+  .check-label.done { text-decoration: line-through; color: #bbb; }
+  .check-label.empty { color: #ccc; font-style: italic; cursor: text; }
+  .check-label.editable { cursor: text; }
+  .inline-input {
+    flex: 1; border: none; border-bottom: 2px solid var(--ac); background: transparent;
+    font-size: 14px; padding: 2px 0; outline: none; color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  /* ── Habit sub-headers ── */
+  .habit-type-label { font-size: 9px; letter-spacing: 2px; font-weight: 700; color: var(--ac); margin: 8px 0 8px; text-transform: uppercase; }
+
+  /* ── Week view ── */
+  .week-view, .dash-view { padding: 14px 14px 80px; }
+  .view-section-title { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; opacity: .38; margin-bottom: 10px; margin-top: 18px; }
+  .view-section-title:first-child { margin-top: 0; }
+
+  .day-card {
+    width: 100%; margin-bottom: 10px; padding: 13px 15px; border-radius: 14px;
+    border: 2px solid #ede9e3; background: #fff; cursor: pointer; text-align: left;
+    display: flex; align-items: center; gap: 14px; font-family: 'DM Sans', sans-serif;
+    box-shadow: 0 2px 8px rgba(0,0,0,.04); transition: transform .1s;
+  }
+  .day-card:active { transform: scale(.98); }
+  .day-card.today-card { background: var(--navy); border-color: var(--gold); box-shadow: 0 4px 20px rgba(226,185,111,.18); }
+  .day-card-name { font-size: 15px; font-weight: 700; color: var(--ink); }
+  .day-card.today-card .day-card-name { color: var(--gold); }
+  .today-pill { font-size: 9px; background: var(--gold); color: var(--navy); border-radius: 4px; padding: 1px 5px; letter-spacing: 1px; font-weight: 700; }
+  .progress-bar-wrap { height: 5px; background: #f0ede8; border-radius: 3px; margin-top: 7px; overflow: hidden; }
+  .day-card.today-card .progress-bar-wrap { background: rgba(255,255,255,.1); }
+  .progress-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--gold), #f97316); transition: width .5s; }
+  .day-pct { font-size: 20px; font-weight: 700; color: var(--ink); }
+  .day-card.today-card .day-pct { color: var(--gold); }
+  .day-frac { font-size: 10px; opacity: .42; }
+  .go-arrow { font-size: 18px; opacity: .28; }
+
+  .cat-card { margin-bottom: 10px; padding: 12px 14px; border-radius: 12px; background: #fff; }
+  .cat-card-top { display: flex; justify-content: space-between; margin-bottom: 7px; align-items: center; }
+  .cat-card-label { font-size: 12px; font-weight: 700; }
+  .cat-card-pct { font-size: 14px; font-weight: 700; }
+  .cat-bar-wrap { height: 7px; background: #f0ede8; border-radius: 4px; overflow: hidden; }
+  .cat-bar-fill { height: 100%; border-radius: 4px; transition: width .6s; }
+  .cat-frac { font-size: 10px; opacity: .38; margin-top: 5px; }
+
+  /* ── Export btn ── */
+  .export-btn {
+    background: var(--navy); color: var(--gold); border: none; border-radius: 9px;
+    padding: 8px 14px; font-size: 11px; cursor: pointer; font-weight: 700;
+    letter-spacing: 1px; font-family: 'DM Sans', sans-serif; transition: opacity .15s;
+    white-space: nowrap;
+  }
+  .export-btn:hover { opacity: .85; }
+  .export-btn-gold {
+    width: 100%; background: var(--gold); color: var(--navy); border: none;
+    border-radius: 10px; padding: 12px; font-size: 12px; cursor: pointer;
+    font-weight: 700; letter-spacing: 1px; font-family: 'DM Sans', sans-serif;
+    margin-bottom: 18px; transition: opacity .15s;
+  }
+  .export-btn-gold:hover { opacity: .88; }
+
+  /* ── Dashboard ── */
+  .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .month-nav-btn {
+    background: var(--navy); color: var(--gold); border: none; border-radius: 9px;
+    padding: 8px 16px; font-size: 16px; cursor: pointer;
+  }
+  .month-title { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; text-align: center; }
+  .month-sub { font-size: 11px; opacity: .38; text-align: center; margin-top: 2px; }
+
+  .overall-card { background: var(--navy); border-radius: 16px; padding: 20px; margin-bottom: 14px; text-align: center; }
+  .overall-label { font-size: 10px; letter-spacing: 3px; color: rgba(255,255,255,.45); margin-bottom: 6px; }
+  .overall-pct { font-family: 'Playfair Display', serif; font-size: 56px; font-weight: 900; color: var(--gold); line-height: 1; }
+  .overall-frac { font-size: 12px; color: rgba(255,255,255,.35); margin-top: 4px; }
+
+  .empty-state { text-align: center; padding: 60px 20px; opacity: .3; }
+  .empty-icon { font-size: 44px; margin-bottom: 12px; }
+  .empty-text { font-size: 14px; }
+
+  .week-summary-card { margin-bottom: 10px; padding: 12px 14px; border-radius: 12px; background: #fff; border: 2px solid #ede9e3; }
+  .wsc-top { display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .wsc-label { font-size: 13px; font-weight: 600; }
+  .wsc-pct { font-size: 13px; font-weight: 700; color: var(--gold); }
+  .wsc-frac { font-size: 10px; opacity: .38; margin-top: 4px; }
+
+  /* ── Day view header row ── */
+  .day-view-top { display: flex; justify-content: space-between; align-items: flex-end; padding: 14px 14px 14px; }
+  .day-view-title { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 900; letter-spacing: -1px; }
+  .day-view-sub { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; opacity: .3; margin-top: 2px; }
+
+  .row-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+
+  @media (min-width: 500px) {
+    #header, #main { max-width: 480px; margin-left: auto; margin-right: auto; left: 0; right: 0; }
+    #header { left: 50%; transform: translateX(-50%); width: 480px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div id="header-top">
+    <div>
+      <div class="app-title-sub">Weekly</div>
+      <div class="app-title">Life Planner</div>
+    </div>
+    <div id="week-nav">
+      <div id="week-label"></div>
+      <div id="nav-btns">
+        <button class="nav-btn" onclick="shiftWeek(-1)">‹ Prev</button>
+        <button class="nav-btn" id="today-btn" onclick="goToday()" style="display:none">Today</button>
+        <button class="nav-btn" onclick="shiftWeek(1)">Next ›</button>
+      </div>
+    </div>
+  </div>
+  <div id="view-tabs">
+    <button class="view-tab active" data-view="day" onclick="setView('day')">📅 Day</button>
+    <button class="view-tab" data-view="week" onclick="setView('week')">📊 Week</button>
+    <button class="view-tab" data-view="dashboard" onclick="setView('dashboard')">📈 Dashboard</button>
+  </div>
+  <div id="day-tabs"></div>
+</div>
+
+<div id="main"></div>
+
+<script>
+// ─── Data ─────────────────────────────────────────────────────────────────────
+const DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const SECTIONS = ["exercise","cleaning","mealPlan","preparation","habits"];
+const SECTION_LABELS = { exercise:"EXERCISE", cleaning:"CLEANING", mealPlan:"MEAL PLAN", preparation:"PREPARATION", habits:"HABITS & HOBBIES" };
+const SECTION_ICONS  = { exercise:"🏃", cleaning:"🧹", mealPlan:"🥗", preparation:"📋", habits:"✨" };
+const SEC_VARS = {
+  exercise:    { bg:"var(--ex-bg)", ac:"var(--ex-ac)", lt:"var(--ex-lt)" },
+  cleaning:    { bg:"var(--cl-bg)", ac:"var(--cl-ac)", lt:"var(--cl-lt)" },
+  mealPlan:    { bg:"var(--mp-bg)", ac:"var(--mp-ac)", lt:"var(--mp-lt)" },
+  preparation: { bg:"var(--pr-bg)", ac:"var(--pr-ac)", lt:"var(--pr-lt)" },
+  habits:      { bg:"var(--hb-bg)", ac:"var(--hb-ac)", lt:"var(--hb-lt)" },
+};
+
+const DEFAULT_DATA = {
+  Sunday:    { exercise:{label:"REST",     items:["Morning stretch","Walk 10K steps","Rest","Evening stretch","",""]},                                cleaning:{label:"BUFFER",                       items:["","","","","",""]},                                                                                 mealPlan:{items:["Drink 64 oz water","","","","",""]}, preparation:{items:["Rocio's clothing bags","Daycare supplies","Bottle labels","Pick up groceries","Breakfast meal prep",""]}, habits:{forMe:["","",""],forUs:["","",""]} },
+  Monday:    { exercise:{label:"STRENGTH", items:["Morning stretch","Walk 10K steps","Strength","Evening stretch","",""]},                           cleaning:{label:"PRIMARY BEDROOM",              items:["Change sheets","Dust surfaces","Vacuum and mop (upstairs)","Clean closet","Primary bathroom",""]}, mealPlan:{items:["Drink 64 oz water","","","","",""]}, preparation:{items:["","","","","",""]},                                                                                    habits:{forMe:["","",""],forUs:["","",""]} },
+  Tuesday:   { exercise:{label:"CARDIO",   items:["Morning stretch","Walk 10K steps","Run / Walk","Evening stretch","",""]},                         cleaning:{label:"OFFICE & GUEST BATHROOM",     items:["Desk reset / wipedown","Dust shelves","Toilet, tub, sink, & mirror","Clean toys","Restock supplies",""]}, mealPlan:{items:["Drink 64 oz water","","","","",""]}, preparation:{items:["","","","","",""]},                                                                              habits:{forMe:["","",""],forUs:["","",""]} },
+  Wednesday: { exercise:{label:"STRENGTH", items:["Morning stretch","Walk 10K steps","Strength","Evening stretch","",""]},                           cleaning:{label:"ROCIO'S ROOMS",                items:["Laundry","Wipe furniture","Declutter surfaces","Restock supplies","Pick up / donate toys",""]}, mealPlan:{items:["Drink 64 oz water","","","","",""]}, preparation:{items:["","","","","",""]},                                                                                  habits:{forMe:["","",""],forUs:["","",""]} },
+  Thursday:  { exercise:{label:"CARDIO",   items:["Morning stretch","Walk 10K steps","Run / Walk","Evening stretch","",""]},                         cleaning:{label:"DOWNSTAIRS BATHROOM & FLOOR", items:["Toilet","Sink & mirror","Vacuum and mop","Restock supplies","",""]},                             mealPlan:{items:["Drink 64 oz water","","","","",""]}, preparation:{items:["","","","","",""]},                                                                                    habits:{forMe:["","",""],forUs:["","",""]} },
+  Friday:    { exercise:{label:"STRENGTH", items:["Morning stretch","Walk 10K steps","Strength","Evening stretch","",""]},                           cleaning:{label:"KITCHEN",                      items:["Wipe counters / backsplash","Clean sink & stovetop","Clean microwave","Organize fridge / pantry","Discard food",""]}, mealPlan:{items:["Drink 64 oz water","","","","",""]}, preparation:{items:["","","","","",""]},                                                                    habits:{forMe:["","",""],forUs:["","",""]} },
+  Saturday:  { exercise:{label:"CARDIO",   items:["Morning stretch","Walk 10K steps","Run / Walk","Evening stretch","",""]},                         cleaning:{label:"LIVING & DINING ROOM",         items:["Declutter surfaces","Dust furniture and décor","Wash blankets","Wipe down surfaces","",""]}, mealPlan:{items:["Drink 64 oz water","","","","",""]}, preparation:{items:["Meal plan","Order groceries","Laundry","","",""]},                                               habits:{forMe:["","",""],forUs:["","",""]} },
+};
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let currentView = "day";
+let weekOffset  = 0;
+let activeDay   = DAYS[new Date().getDay()];
+let openSection = null;
+let dashMonth   = new Date().getMonth();
+let dashYear    = new Date().getFullYear();
+
+// ─── Storage ──────────────────────────────────────────────────────────────────
+function lsGet(k, fb = null) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch { return fb; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+
+function getWeekKey(offset = 0) {
+  const now = new Date(), sun = new Date(now);
+  sun.setDate(now.getDate() - now.getDay() + offset * 7);
+  return sun.toISOString().split("T")[0];
+}
+function getTodayName() { return DAYS[new Date().getDay()]; }
+function parseWeekKey(k) { const d = new Date(k + "T00:00:00"); return { month: d.getMonth(), year: d.getFullYear(), sunday: d }; }
+
+function weekKey() { return getWeekKey(weekOffset); }
+function checks()  { return lsGet(`checks:${weekKey()}`, {}); }
+function custom()  { return lsGet("custom", {}); }
+
+function saveChecks(c) { lsSet(`checks:${weekKey()}`, c); }
+function saveCustom(c) { lsSet("custom", c); }
+
+function isChecked(day, sec, key) { return !!checks()[`${day}:${sec}:${key}`]; }
+function toggle(day, sec, key) {
+  const c = checks(); c[`${day}:${sec}:${key}`] = !c[`${day}:${sec}:${key}`];
+  saveChecks(c); render();
+}
+
+function getCustomItem(day, sec, i) { return custom()[`${weekKey()}:${day}:${sec}:custom_${i}`] || ""; }
+function setCustomItem(day, sec, i, v) { const c = custom(); c[`${weekKey()}:${day}:${sec}:custom_${i}`] = v; saveCustom(c); }
+function getHabit(day, type, i) { return custom()[`${weekKey()}:${day}:habits_custom:habits_${type}_${i}`] || ""; }
+function setHabit(day, type, i, v) { const c = custom(); c[`${weekKey()}:${day}:habits_custom:habits_${type}_${i}`] = v; saveCustom(c); }
+
+// ─── Progress ─────────────────────────────────────────────────────────────────
+function sectionProgress(day, sec, wk, allCustom, allChecks) {
+  wk = wk || weekKey(); allCustom = allCustom || custom(); allChecks = allChecks || checks();
+  if (sec === "habits") {
+    let done = 0, total = 0;
+    ["forMe","forUs"].forEach(type => [0,1,2].forEach(i => {
+      const v = allCustom[`${wk}:${day}:habits_custom:habits_${type}_${i}`] || "";
+      if (v) { total++; if (allChecks[`${day}:habits_${type}:${i}`]) done++; }
+    }));
+    return { done, total };
+  }
+  const items = DEFAULT_DATA[day][sec].items;
+  let done = 0, total = 0;
+  items.forEach((item, i) => {
+    const v = item || (allCustom[`${wk}:${day}:${sec}:custom_${i}`] || "");
+    if (v) { total++; if (allChecks[`${day}:${sec}:${i}`]) done++; }
+  });
+  return { done, total };
+}
+function dayProgress(day, wk, allCustom, allChecks) {
+  let done = 0, total = 0;
+  SECTIONS.forEach(s => { const p = sectionProgress(day, s, wk, allCustom, allChecks); done += p.done; total += p.total; });
+  return { done, total };
+}
+
+// ─── Export CSV ───────────────────────────────────────────────────────────────
+function downloadCSV(rows, filename) {
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
+  a.download = filename; a.click();
+}
+
+function exportWeek() {
+  const wk = weekKey(), cu = custom(), ch = checks();
+  const rows = [["Week","Day","Section","Task","Completed"]];
+  DAYS.forEach(day => SECTIONS.forEach(sec => {
+    if (sec === "habits") {
+      ["forMe","forUs"].forEach(type => [0,1,2].forEach(i => {
+        const v = cu[`${wk}:${day}:habits_custom:habits_${type}_${i}`] || "";
+        if (v) rows.push([wk, day, `Habits (${type})`, v, ch[`${day}:habits_${type}:${i}`] ? "Yes" : "No"]);
+      }));
+    } else {
+      DEFAULT_DATA[day][sec].items.forEach((item, i) => {
+        const v = item || (cu[`${wk}:${day}:${sec}:custom_${i}`] || "");
+        if (v) rows.push([wk, day, SECTION_LABELS[sec], v, ch[`${day}:${sec}:${i}`] ? "Yes" : "No"]);
+      });
+    }
+  }));
+  downloadCSV(rows, `life-planner-week-${wk}.csv`);
+}
+
+function exportMonth() {
+  const cu = custom();
+  const allKeys = Object.keys(localStorage).filter(k => k.startsWith("checks:")).map(k => k.replace("checks:",""));
+  const mKeys = allKeys.filter(k => { const { month, year } = parseWeekKey(k); return month === dashMonth && year === dashYear; });
+  const rows = [["Week","Day","Section","Task","Completed"]];
+  mKeys.forEach(wk => {
+    const ch = lsGet(`checks:${wk}`, {});
+    DAYS.forEach(day => SECTIONS.forEach(sec => {
+      if (sec === "habits") {
+        ["forMe","forUs"].forEach(type => [0,1,2].forEach(i => {
+          const v = cu[`${wk}:${day}:habits_custom:habits_${type}_${i}`] || "";
+          if (v) rows.push([wk, day, `Habits (${type})`, v, ch[`${day}:habits_${type}:${i}`] ? "Yes" : "No"]);
+        }));
+      } else {
+        DEFAULT_DATA[day][sec].items.forEach((item, idx) => {
+          const v = item || (cu[`${wk}:${day}:${sec}:custom_${idx}`] || "");
+          if (v) rows.push([wk, day, SECTION_LABELS[sec], v, ch[`${day}:${sec}:${idx}`] ? "Yes" : "No"]);
+        });
+      }
+    }));
+  });
+  downloadCSV(rows, `life-planner-${MONTHS[dashMonth]}-${dashYear}.csv`);
+}
+
+// ─── Navigation ───────────────────────────────────────────────────────────────
+function shiftWeek(d) { weekOffset += d; render(); }
+function goToday()    { weekOffset = 0; activeDay = getTodayName(); render(); }
+function setView(v)   { currentView = v; openSection = null; render(); }
+function setActiveDay(d) { activeDay = d; currentView = "day"; openSection = null; render(); }
+function toggleSection(s) { openSection = openSection === s ? null : s; renderMain(); }
+
+// ─── Ring SVG ────────────────────────────────────────────────────────────────
+function ringBg(pct) {
+  return `conic-gradient(var(--gold) ${pct}%, rgba(255,255,255,0.12) 0)`;
+}
+
+// ─── Render Header ────────────────────────────────────────────────────────────
+function renderHeader() {
+  const wk = weekKey();
+  const { sunday } = parseWeekKey(wk);
+  const end = new Date(sunday); end.setDate(sunday.getDate() + 6);
+  document.getElementById("week-label").textContent =
+    `${MONTHS[sunday.getMonth()].slice(0,3)} ${sunday.getDate()} – ${MONTHS[end.getMonth()].slice(0,3)} ${end.getDate()}, ${end.getFullYear()}`;
+  document.getElementById("today-btn").style.display = weekOffset !== 0 ? "" : "none";
+
+  // view tabs
+  document.querySelectorAll(".view-tab").forEach(t => t.classList.toggle("active", t.dataset.view === currentView));
+
+  // day tabs
+  const today = getTodayName();
+  const isCurrentWeek = weekOffset === 0;
+  const cu = custom(), ch = checks();
+  const dtContainer = document.getElementById("day-tabs");
+  dtContainer.style.display = currentView === "day" ? "flex" : "none";
+  if (currentView === "day") {
+    dtContainer.innerHTML = DAYS.map(d => {
+      const { done, total } = dayProgress(d, wk, cu, ch);
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      const isToday = d === today && isCurrentWeek;
+      const isActive = d === activeDay;
+      const cls = [isActive ? "active" : "", isToday ? "today-tab" : ""].filter(Boolean).join(" ");
+      return `<button class="day-tab ${cls}" onclick="setActiveDay('${d}')">
+        <div class="day-tab-name">${d.slice(0,3).toUpperCase()}</div>
+        ${isToday ? `<div class="day-tab-today-label">TODAY</div>` : ""}
+        ${total > 0 ? `<div class="ring-wrap" style="background:${ringBg(pct)}">
+          <div class="ring-inner">${pct}%</div>
+        </div>` : `<div style="height:30px"></div>`}
+      </button>`;
+    }).join("");
+  }
+
+  // adjust main padding
+  document.getElementById("main").style.paddingTop = document.getElementById("header").offsetHeight + "px";
+}
+
+// ─── Render Main ─────────────────────────────────────────────────────────────
+function renderMain() {
+  const el = document.getElementById("main");
+  if (currentView === "day")       el.innerHTML = buildDayView();
+  else if (currentView === "week") el.innerHTML = buildWeekView();
+  else                             el.innerHTML = buildDashView();
+  attachInputListeners();
+}
+
+function render() { renderHeader(); renderMain(); }
+
+// ─── Day View ─────────────────────────────────────────────────────────────────
+function buildDayView() {
+  const day = activeDay;
+  const data = DEFAULT_DATA[day];
+  let html = `<div class="day-view-top">
+    <div>
+      <div class="day-view-title">${day}</div>
+      ${data.exercise.label ? `<div class="day-view-sub">${data.exercise.label} day</div>` : ""}
+    </div>
+    <button class="export-btn" onclick="exportWeek()">⬇ EXPORT WEEK</button>
+  </div>`;
+
+  SECTIONS.forEach(sec => {
+    const v = SEC_VARS[sec];
+    const isOpen = openSection === sec;
+    html += `<div class="section-card${isOpen?" open":""}" style="--bg:${v.bg};--ac:${v.ac};--lt:${v.lt}">`;
+    if (sec === "habits") {
+      const ch = checks(), cu = custom(), wk = weekKey();
+      let done=0, total=0;
+      ["forMe","forUs"].forEach(type => [0,1,2].forEach(i => {
+        const val = cu[`${wk}:${day}:habits_custom:habits_${type}_${i}`] || "";
+        if (val) { total++; if (ch[`${day}:habits_${type}:${i}`]) done++; }
+      }));
+      html += `<button class="section-header" onclick="toggleSection('${sec}')">
+        <span class="section-icon">${SECTION_ICONS[sec]}</span>
+        <div style="flex:1"><div class="section-label">${SECTION_LABELS[sec]}</div></div>
+        ${total>0?`<span class="section-badge${done===total?"":" dim"}">${done}/${total}</span>`:""}
+        <span class="chevron">›</span>
+      </button>
+      <div class="section-body">`;
+      ["forMe","forUs"].forEach(type => {
+        html += `<div class="habit-type-label">${type==="forMe"?"FOR ME":"FOR US"}</div>`;
+        [0,1,2].forEach(i => {
+          const val = cu[`${wk}:${day}:habits_custom:habits_${type}_${i}`] || "";
+          const done = !!ch[`${day}:habits_${type}:${i}`];
+          html += checkRow({ done, hasVal:!!val, ac:v.ac, checkId:`${day}|habits_${type}|${i}`, inputId:`habit_${day}_${type}_${i}`, value:val, placeholder:`Tap to add ${type==="forMe"?"personal":"shared"} habit...`, isFixed:false });
+        });
+      });
+      html += `</div></div>`;
+    } else {
+      const secData = data[sec];
+      const ch = checks(), cu = custom(), wk = weekKey();
+      let done=0, total=0;
+      secData.items.forEach((item,i) => {
+        const val = item || (cu[`${wk}:${day}:${sec}:custom_${i}`]||"");
+        if (val) { total++; if (ch[`${day}:${sec}:${i}`]) done++; }
+      });
+      html += `<button class="section-header" onclick="toggleSection('${sec}')">
+        <span class="section-icon">${SECTION_ICONS[sec]}</span>
+        <div style="flex:1">
+          <div class="section-label">${SECTION_LABELS[sec]}</div>
+          ${secData.label?`<div class="section-sublabel">${secData.label}</div>`:""}
+        </div>
+        ${total>0?`<span class="section-badge${done===total?"":" dim"}">${done}/${total}</span>`:""}
+        <span class="chevron">›</span>
+      </button>
+      <div class="section-body">`;
+      secData.items.forEach((item, i) => {
+        const customVal = cu[`${wk}:${day}:${sec}:custom_${i}`]||"";
+        const displayVal = item || customVal;
+        const chk = !!ch[`${day}:${sec}:${i}`];
+        html += checkRow({ done:chk, hasVal:!!displayVal, ac:v.ac, checkId:`${day}|${sec}|${i}`, inputId:`custom_${day}_${sec}_${i}`, value:customVal, fixedLabel:item||null, placeholder:"Tap to add task...", isFixed:!!item });
+      });
+      html += `</div></div>`;
+    }
+  });
+  return html;
+}
+
+function checkRow({ done, hasVal, ac, checkId, inputId, value, fixedLabel, placeholder, isFixed }) {
+  const checkedStyle = done ? `background:${ac};border-color:${ac};` : (hasVal ? `border-color:${ac};` : "");
+  const labelCls = done ? "check-label done" : (!hasVal ? "check-label empty" : "check-label" + (isFixed ? "" : " editable"));
+  return `<div class="check-row">
+    <button class="check-btn${done?" checked":""}${hasVal?" has-val":""}"
+      style="${checkedStyle}" onclick="handleCheck('${checkId}')">${done?"✓":""}</button>
+    ${!isFixed ? `<input class="inline-input" id="${inputId}" style="--ac:${ac}" data-id="${inputId}"
+      value="${escHtml(value)}" placeholder="${placeholder}"
+      onfocus="this.style.display='block'" onblur="handleInputBlur(this,'${inputId}')"
+      onkeydown="if(event.key==='Enter')this.blur()"
+      style="display:${hasVal||value?'block':'none'}"/>
+    <div class="check-label${done?" done":""} ${!hasVal?"empty":"editable"}"
+      id="lbl_${inputId}"
+      onclick="focusInput('${inputId}')"
+      style="display:${hasVal?'none':'block'};border-color:${ac}">
+      ${escHtml(fixedLabel||value||placeholder)}
+    </div>` :
+    `<div class="${labelCls}">${escHtml(fixedLabel)}</div>`}
+  </div>`;
+}
+
+function escHtml(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+function attachInputListeners() {
+  // show/hide label vs input for editable rows
+  document.querySelectorAll(".inline-input").forEach(input => {
+    const id = input.dataset.id;
+    const lbl = document.getElementById("lbl_" + id);
+    if (input.value) { input.style.display = "block"; if(lbl) lbl.style.display = "none"; }
+    else { input.style.display = "none"; if(lbl) lbl.style.display = "block"; }
+  });
+}
+
+function focusInput(id) {
+  const input = document.getElementById(id);
+  const lbl = document.getElementById("lbl_" + id);
+  if (input) { input.style.display = "block"; if(lbl) lbl.style.display = "none"; input.focus(); }
+}
+
+function handleInputBlur(input, id) {
+  const lbl = document.getElementById("lbl_" + id);
+  const val = input.value.trim();
+  // parse id to figure out what to save
+  if (id.startsWith("habit_")) {
+    const parts = id.replace("habit_","").split("_");
+    const day = parts[0], type = parts[1], i = parseInt(parts[2]);
+    setHabit(day, type, i, val);
+  } else if (id.startsWith("custom_")) {
+    const rest = id.replace("custom_","");
+    // format: custom_{day}_{sec}_{i}
+    // day has no underscore issues except Wednesday — split from right
+    const lastUnder = rest.lastIndexOf("_");
+    const i = parseInt(rest.slice(lastUnder+1));
+    const rest2 = rest.slice(0, lastUnder);
+    // find sec
+    const secs = ["mealPlan","preparation","exercise","cleaning","habits"];
+    let sec = null, day = null;
+    for (const s of secs) {
+      if (rest2.endsWith("_"+s)) { sec = s; day = rest2.slice(0, rest2.length - s.length - 1); break; }
+    }
+    if (sec && day) setCustomItem(day, sec, i, val);
+  }
+  renderHeader(); // update rings
+  if (val) { input.style.display = "block"; if(lbl) lbl.style.display = "none"; }
+  else { input.style.display = "none"; if(lbl) { lbl.textContent = input.placeholder; lbl.style.display = "block"; } }
+}
+
+function handleCheck(id) {
+  const parts = id.split("|");
+  toggle(parts[0], parts[1], parts[2]);
+}
+
+// ─── Week View ────────────────────────────────────────────────────────────────
+function buildWeekView() {
+  const wk = weekKey(), cu = custom(), ch = checks();
+  const today = getTodayName(), isCurrentWeek = weekOffset === 0;
+  let html = `<div class="week-view">
+    <div class="row-flex" style="margin-bottom:16px">
+      <div class="view-section-title" style="margin:0">This Week</div>
+      <button class="export-btn" onclick="exportWeek()">⬇ EXPORT CSV</button>
+    </div>`;
+
+  DAYS.forEach(day => {
+    const { done, total } = dayProgress(day, wk, cu, ch);
+    const pct = total ? Math.round((done/total)*100) : 0;
+    const isToday = day===today && isCurrentWeek;
+    html += `<button class="day-card${isToday?" today-card":""}" onclick="setActiveDay('${day}')">
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
+          <span class="day-card-name">${day}</span>
+          ${isToday?`<span class="today-pill">TODAY</span>`:""}
+        </div>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+      </div>
+      <div style="text-align:right"><div class="day-pct">${pct}%</div><div class="day-frac">${done}/${total}</div></div>
+      <span class="go-arrow">›</span>
+    </button>`;
+  });
+
+  html += `<div class="view-section-title">By Category</div>`;
+  SECTIONS.forEach(sec => {
+    const v = SEC_VARS[sec];
+    let done=0, total=0;
+    DAYS.forEach(d => { const p = sectionProgress(d, sec, wk, cu, ch); done+=p.done; total+=p.total; });
+    const pct = total ? Math.round((done/total)*100) : 0;
+    html += `<div class="cat-card" style="border:2px solid ${v.lt}">
+      <div class="cat-card-top">
+        <span class="cat-card-label" style="color:${v.ac}">${SECTION_ICONS[sec]} ${SECTION_LABELS[sec]}</span>
+        <span class="cat-card-pct" style="color:${v.ac}">${pct}%</span>
+      </div>
+      <div class="cat-bar-wrap"><div class="cat-bar-fill" style="width:${pct}%;background:${v.ac}"></div></div>
+      <div class="cat-frac">${done} of ${total} tasks</div>
+    </div>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+function shiftDashMonth(dir) {
+  dashMonth += dir;
+  if (dashMonth < 0) { dashMonth = 11; dashYear--; }
+  if (dashMonth > 11) { dashMonth = 0; dashYear++; }
+  renderMain();
+}
+
+function buildDashView() {
+  const cu = custom();
+  const allKeys = Object.keys(localStorage).filter(k=>k.startsWith("checks:")).map(k=>k.replace("checks:",""));
+  const mKeys = allKeys.filter(k => { const {month,year} = parseWeekKey(k); return month===dashMonth&&year===dashYear; }).sort();
+
+  let monthDone=0, monthTotal=0;
+  const secTotals = {};
+  SECTIONS.forEach(s => secTotals[s]={done:0,total:0});
+  const weekSummaries = mKeys.map(wk => {
+    const ch = lsGet(`checks:${wk}`,{});
+    let wd=0, wt=0;
+    DAYS.forEach(day => SECTIONS.forEach(sec => {
+      const p = sectionProgress(day, sec, wk, cu, ch);
+      wd+=p.done; wt+=p.total; secTotals[sec].done+=p.done; secTotals[sec].total+=p.total;
+    }));
+    monthDone+=wd; monthTotal+=wt;
+    const {sunday} = parseWeekKey(wk);
+    const end=new Date(sunday); end.setDate(sunday.getDate()+6);
+    return {wk, label:`${MONTHS[sunday.getMonth()].slice(0,3)} ${sunday.getDate()}–${end.getDate()}`, done:wd, total:wt};
+  });
+
+  const now = new Date();
+  const canGoNext = !(dashYear===now.getFullYear()&&dashMonth>=now.getMonth());
+  const monthPct = monthTotal ? Math.round((monthDone/monthTotal)*100) : 0;
+
+  let html = `<div class="dash-view">
+    <div class="month-nav">
+      <button class="month-nav-btn" onclick="shiftDashMonth(-1)">‹</button>
+      <div><div class="month-title">${MONTHS[dashMonth]} ${dashYear}</div>
+        <div class="month-sub">${mKeys.length} week${mKeys.length!==1?"s":""} tracked</div></div>
+      <button class="month-nav-btn" onclick="shiftDashMonth(1)" ${canGoNext?"":"disabled style='opacity:.3;cursor:default'"}">›</button>
+    </div>`;
+
+  if (mKeys.length === 0) {
+    html += `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">No data tracked for this month yet.</div></div>`;
+  } else {
+    html += `<div class="overall-card">
+      <div class="overall-label">OVERALL COMPLETION</div>
+      <div class="overall-pct">${monthPct}%</div>
+      <div class="overall-frac">${monthDone} of ${monthTotal} tasks</div>
+    </div>
+    <button class="export-btn-gold" onclick="exportMonth()">⬇ EXPORT ${MONTHS[dashMonth].toUpperCase()} CSV</button>
+    <div class="view-section-title">By Category</div>`;
+
+    SECTIONS.forEach(sec => {
+      const v = SEC_VARS[sec];
+      const {done,total} = secTotals[sec];
+      const pct = total ? Math.round((done/total)*100) : 0;
+      html += `<div class="cat-card" style="border:2px solid ${v.lt}">
+        <div class="cat-card-top">
+          <span class="cat-card-label" style="color:${v.ac}">${SECTION_ICONS[sec]} ${SECTION_LABELS[sec]}</span>
+          <span class="cat-card-pct" style="color:${v.ac}">${pct}%</span>
+        </div>
+        <div class="cat-bar-wrap"><div class="cat-bar-fill" style="width:${pct}%;background:${v.ac}"></div></div>
+        <div class="cat-frac">${done} of ${total} tasks completed</div>
+      </div>`;
+    });
+
+    html += `<div class="view-section-title">By Week</div>`;
+    weekSummaries.forEach(({label,done,total}) => {
+      const pct = total ? Math.round((done/total)*100) : 0;
+      html += `<div class="week-summary-card">
+        <div class="wsc-top"><span class="wsc-label">${label}</span><span class="wsc-pct">${pct}%</span></div>
+        <div class="cat-bar-wrap"><div class="cat-bar-fill" style="width:${pct}%;background:linear-gradient(90deg,var(--gold),#f97316)"></div></div>
+        <div class="wsc-frac">${done}/${total} tasks</div>
+      </div>`;
+    });
+  }
+  html += `</div>`;
+  return html;
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+render();
+window.addEventListener("resize", () => {
+  document.getElementById("main").style.paddingTop = document.getElementById("header").offsetHeight + "px";
+});
+</script>
+</body>
+</html>
