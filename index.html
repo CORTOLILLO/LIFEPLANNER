@@ -201,6 +201,14 @@
   .wsc-pct { font-size: 13px; font-weight: 700; color: var(--gold); }
   .wsc-frac { font-size: 10px; opacity: .38; margin-top: 4px; }
 
+  .add-more-btn {
+    width: 100%; margin-top: 6px; padding: 8px; border-radius: 8px;
+    border: 2px dashed var(--ac); background: transparent; color: var(--ac);
+    font-size: 12px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif;
+    letter-spacing: .5px; transition: background .15s;
+  }
+  .add-more-btn:hover { background: rgba(0,0,0,.04); }
+
   /* ── Day view header row ── */
   .day-view-top { display: flex; justify-content: space-between; align-items: flex-end; padding: 14px 14px 14px; }
   .day-view-title { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 900; letter-spacing: -1px; }
@@ -245,25 +253,26 @@
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const SECTIONS = ["exercise","cleaning","mealPlan","preparation","habits"];
-const SECTION_LABELS = { exercise:"EXERCISE", cleaning:"CLEANING", mealPlan:"MEAL PLAN", preparation:"PREPARATION", habits:"HABITS & HOBBIES" };
-const SECTION_ICONS  = { exercise:"🏃", cleaning:"🧹", mealPlan:"🥗", preparation:"📋", habits:"✨" };
+const SECTIONS = ["health","cleaning","mealPlan","preparation","todo","habits"];
+const SECTION_LABELS = { health:"HEALTH", cleaning:"CLEANING", mealPlan:"MEAL PLAN", preparation:"PREPARATION", todo:"TO DO", habits:"HABITS & HOBBIES" };
+const SECTION_ICONS  = { health:"💪", cleaning:"🧹", mealPlan:"🥗", preparation:"📋", todo:"✅", habits:"✨" };
 const SEC_VARS = {
-  exercise:    { bg:"var(--ex-bg)", ac:"var(--ex-ac)", lt:"var(--ex-lt)" },
+  health:      { bg:"var(--ex-bg)", ac:"var(--ex-ac)", lt:"var(--ex-lt)" },
   cleaning:    { bg:"var(--cl-bg)", ac:"var(--cl-ac)", lt:"var(--cl-lt)" },
   mealPlan:    { bg:"var(--mp-bg)", ac:"var(--mp-ac)", lt:"var(--mp-lt)" },
   preparation: { bg:"var(--pr-bg)", ac:"var(--pr-ac)", lt:"var(--pr-lt)" },
+  todo:        { bg:"#f8f7ff", ac:"#6366f1", lt:"#c7d2fe" },
   habits:      { bg:"var(--hb-bg)", ac:"var(--hb-ac)", lt:"var(--hb-lt)" },
 };
 
 const DEFAULT_DATA = {
-  Sunday:    { exercise:{label:"REST",     items:["Morning stretch","Walk 10K steps","Rest","Evening stretch","",""]},                                cleaning:{label:"BUFFER",                       items:["","","","","",""]},                                                                                 mealPlan:{items:["Drink 64 oz water","","","","",""]}, preparation:{items:["Rocio's clothing bags","Daycare supplies","Bottle labels","Pick up groceries","Breakfast meal prep",""]}, habits:{forMe:["","",""],forUs:["","",""]} },
-  Monday:    { exercise:{label:"STRENGTH", items:["Morning stretch","Walk 10K steps","Strength","Evening stretch","",""]},                           cleaning:{label:"PRIMARY BEDROOM",              items:["Change sheets","Dust surfaces","Vacuum and mop (upstairs)","Clean closet","Primary bathroom",""]}, mealPlan:{items:["Drink 64 oz water","","","","",""]}, preparation:{items:["","","","","",""]},                                                                                    habits:{forMe:["","",""],forUs:["","",""]} },
-  Tuesday:   { exercise:{label:"CARDIO",   items:["Morning stretch","Walk 10K steps","Run / Walk","Evening stretch","",""]},                         cleaning:{label:"OFFICE & GUEST BATHROOM",     items:["Desk reset / wipedown","Dust shelves","Toilet, tub, sink, & mirror","Clean toys","Restock supplies",""]}, mealPlan:{items:["Drink 64 oz water","","","","",""]}, preparation:{items:["","","","","",""]},                                                                              habits:{forMe:["","",""],forUs:["","",""]} },
-  Wednesday: { exercise:{label:"STRENGTH", items:["Morning stretch","Walk 10K steps","Strength","Evening stretch","",""]},                           cleaning:{label:"ROCIO'S ROOMS",                items:["Laundry","Wipe furniture","Declutter surfaces","Restock supplies","Pick up / donate toys",""]}, mealPlan:{items:["Drink 64 oz water","","","","",""]}, preparation:{items:["","","","","",""]},                                                                                  habits:{forMe:["","",""],forUs:["","",""]} },
-  Thursday:  { exercise:{label:"CARDIO",   items:["Morning stretch","Walk 10K steps","Run / Walk","Evening stretch","",""]},                         cleaning:{label:"DOWNSTAIRS BATHROOM & FLOOR", items:["Toilet","Sink & mirror","Vacuum and mop","Restock supplies","",""]},                             mealPlan:{items:["Drink 64 oz water","","","","",""]}, preparation:{items:["","","","","",""]},                                                                                    habits:{forMe:["","",""],forUs:["","",""]} },
-  Friday:    { exercise:{label:"STRENGTH", items:["Morning stretch","Walk 10K steps","Strength","Evening stretch","",""]},                           cleaning:{label:"KITCHEN",                      items:["Wipe counters / backsplash","Clean sink & stovetop","Clean microwave","Organize fridge / pantry","Discard food",""]}, mealPlan:{items:["Drink 64 oz water","","","","",""]}, preparation:{items:["","","","","",""]},                                                                    habits:{forMe:["","",""],forUs:["","",""]} },
-  Saturday:  { exercise:{label:"CARDIO",   items:["Morning stretch","Walk 10K steps","Run / Walk","Evening stretch","",""]},                         cleaning:{label:"LIVING & DINING ROOM",         items:["Declutter surfaces","Dust furniture and décor","Wash blankets","Wipe down surfaces","",""]}, mealPlan:{items:["Drink 64 oz water","","","","",""]}, preparation:{items:["Meal plan","Order groceries","Laundry","","",""]},                                               habits:{forMe:["","",""],forUs:["","",""]} },
+  Sunday:    { health:{label:"", items:["Meds","Stretch","Walk 10K steps","Rest","Drink 64 oz water",""]},                    cleaning:{label:"", items:["Catch up","","","","",""]},                                                                    mealPlan:{items:["","","","","",""]}, preparation:{items:["Rocio\'s clothing bags","Daycare supplies","Bottle labels","Pick up groceries","Breakfast meal prep",""]}, todo:{items:["","","","","",""]}, habits:{forMe:["","",""],forUs:["","",""]} },
+  Monday:    { health:{label:"", items:["Meds","Stretch","Walk 10K steps","Workout","Drink 64 oz water",""]},                 cleaning:{label:"", items:["Primary bedroom","Primary bathroom","Restock supplies","Personal closet & laundry","",""]},    mealPlan:{items:["","","","","",""]}, preparation:{items:["","","","","",""]},                                                                                    todo:{items:["","","","","",""]}, habits:{forMe:["","",""],forUs:["","",""]} },
+  Tuesday:   { health:{label:"", items:["Meds","Stretch","Walk 10K steps","Workout","Drink 64 oz water",""]},                 cleaning:{label:"", items:["Personal office","Guest bathroom","Restock supplies","","",""]},                              mealPlan:{items:["","","","","",""]}, preparation:{items:["","","","","",""]},                                                                                    todo:{items:["","","","","",""]}, habits:{forMe:["","",""],forUs:["","",""]} },
+  Wednesday: { health:{label:"", items:["Meds","Stretch","Walk 10K steps","Workout","Drink 64 oz water",""]},                 cleaning:{label:"", items:["Rocio\'s bedroom","Rocio\'s laundry","Restock supplies","Toy clean out","",""]},              mealPlan:{items:["","","","","",""]}, preparation:{items:["","","","","",""]},                                                                                    todo:{items:["","","","","",""]}, habits:{forMe:["","",""],forUs:["","",""]} },
+  Thursday:  { health:{label:"", items:["Meds","Stretch","Walk 10K steps","Workout","Drink 64 oz water",""]},                 cleaning:{label:"", items:["Half bathroom","Laundry room","Dining room","Living room","Vacuum and mop","Restock supplies"]}, mealPlan:{items:["","","","","",""]}, preparation:{items:["","","","","",""]},                                                                                  todo:{items:["","","","","",""]}, habits:{forMe:["","",""],forUs:["","",""]} },
+  Friday:    { health:{label:"", items:["Meds","Stretch","Walk 10K steps","Workout","Drink 64 oz water",""]},                 cleaning:{label:"", items:["Kitchen","Food cleanout","","","",""]},                                                        mealPlan:{items:["","","","","",""]}, preparation:{items:["","","","","",""]},                                                                                    todo:{items:["","","","","",""]}, habits:{forMe:["","",""],forUs:["","",""]} },
+  Saturday:  { health:{label:"", items:["Meds","Stretch","Walk 10K steps","Workout","Drink 64 oz water",""]},                 cleaning:{label:"", items:["Catch up","","","","",""]},                                                                    mealPlan:{items:["","","","","",""]}, preparation:{items:["Meal plan","Order groceries","Laundry","","",""]},                                               todo:{items:["","","","","",""]}, habits:{forMe:["","",""],forUs:["","",""]} },
 };
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -316,11 +325,14 @@ function sectionProgress(day, sec, wk, allCustom, allChecks) {
     return { done, total };
   }
   const items = DEFAULT_DATA[day][sec].items;
+  const overflowCount = parseInt(allCustom[`${wk}:${day}:${sec}:overflow_count`]||"0");
+  const totalSlots = items.length + overflowCount;
   let done = 0, total = 0;
-  items.forEach((item, i) => {
+  for (let i=0; i<totalSlots; i++) {
+    const item = i < items.length ? items[i] : "";
     const v = item || (allCustom[`${wk}:${day}:${sec}:custom_${i}`] || "");
     if (v) { total++; if (allChecks[`${day}:${sec}:${i}`]) done++; }
-  });
+  }
   return { done, total };
 }
 function dayProgress(day, wk, allCustom, allChecks) {
@@ -449,7 +461,7 @@ function buildDayView() {
   let html = `<div class="day-view-top">
     <div>
       <div class="day-view-title">${day}</div>
-      ${data.exercise.label ? `<div class="day-view-sub">${data.exercise.label} day</div>` : ""}
+      ${data.health && data.health.label ? `<div class="day-view-sub">${data.health.label}</div>` : ""}
     </div>
     <button class="export-btn" onclick="exportWeek()">⬇ EXPORT WEEK</button>
   </div>`;
@@ -484,11 +496,15 @@ function buildDayView() {
     } else {
       const secData = data[sec];
       const ch = checks(), cu = custom(), wk = weekKey();
+      // count base items + any overflow items
+      const overflowCount = parseInt(cu[`${wk}:${day}:${sec}:overflow_count`]||"0");
+      const totalSlots = secData.items.length + overflowCount;
       let done=0, total=0;
-      secData.items.forEach((item,i) => {
+      for (let i=0; i<totalSlots; i++) {
+        const item = i < secData.items.length ? secData.items[i] : "";
         const val = item || (cu[`${wk}:${day}:${sec}:custom_${i}`]||"");
         if (val) { total++; if (ch[`${day}:${sec}:${i}`]) done++; }
-      });
+      }
       html += `<button class="section-header" onclick="toggleSection('${sec}')">
         <span class="section-icon">${SECTION_ICONS[sec]}</span>
         <div style="flex:1">
@@ -499,12 +515,21 @@ function buildDayView() {
         <span class="chevron">›</span>
       </button>
       <div class="section-body">`;
-      secData.items.forEach((item, i) => {
+      for (let i=0; i<totalSlots; i++) {
+        const item = i < secData.items.length ? secData.items[i] : "";
         const customVal = cu[`${wk}:${day}:${sec}:custom_${i}`]||"";
         const displayVal = item || customVal;
         const chk = !!ch[`${day}:${sec}:${i}`];
         html += checkRow({ done:chk, hasVal:!!displayVal, ac:v.ac, checkId:`${day}|${sec}|${i}`, inputId:`custom_${day}_${sec}_${i}`, value:customVal, fixedLabel:item||null, placeholder:"Tap to add task...", isFixed:!!item });
-      });
+      }
+      // check if all slots are filled — show "add more" button
+      const allFilled = Array.from({length:totalSlots}, (_,i) => {
+        const item = i < secData.items.length ? secData.items[i] : "";
+        return !!(item || cu[`${wk}:${day}:${sec}:custom_${i}`]);
+      }).every(Boolean);
+      if (allFilled && totalSlots > 0) {
+        html += `<button class="add-more-btn" onclick="addOverflowRow('${day}','${sec}')">+ Add another task</button>`;
+      }
       html += `</div></div>`;
     }
   });
@@ -566,7 +591,7 @@ function handleInputBlur(input, id) {
     const i = parseInt(rest.slice(lastUnder+1));
     const rest2 = rest.slice(0, lastUnder);
     // find sec
-    const secs = ["mealPlan","preparation","exercise","cleaning","habits"];
+    const secs = ["mealPlan","preparation","health","cleaning","habits","todo"];
     let sec = null, day = null;
     for (const s of secs) {
       if (rest2.endsWith("_"+s)) { sec = s; day = rest2.slice(0, rest2.length - s.length - 1); break; }
@@ -581,6 +606,20 @@ function handleInputBlur(input, id) {
 function handleCheck(id) {
   const parts = id.split("|");
   toggle(parts[0], parts[1], parts[2]);
+}
+
+function addOverflowRow(day, sec) {
+  const wk = weekKey(), cu = custom();
+  const baseCount = DEFAULT_DATA[day][sec].items.length;
+  const current = parseInt(cu[`${wk}:${day}:${sec}:overflow_count`]||"0");
+  cu[`${wk}:${day}:${sec}:overflow_count`] = current + 1;
+  saveCustom(cu);
+  // re-render and keep section open
+  openSection = sec;
+  renderMain();
+  // focus the new input
+  const newIdx = baseCount + current;
+  setTimeout(() => focusInput(`custom_${day}_${sec}_${newIdx}`), 50);
 }
 
 // ─── Week View ────────────────────────────────────────────────────────────────
