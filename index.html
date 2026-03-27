@@ -157,6 +157,27 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:"Jost
   <div id="view-tabs"></div>
   <div id="day-tabs"></div>
 </div>
+<style>
+#pin-screen{position:fixed;inset:0;background:var(--ivory);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 30px;font-family:"Jost",sans-serif}
+.pin-title{font-family:"Cormorant Garamond",serif;font-size:32px;font-weight:600;font-style:italic;color:var(--mocha);margin-bottom:6px}
+.pin-sub{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--stone);margin-bottom:40px}
+.pin-input-wrap{display:flex;flex-direction:column;align-items:center;gap:16px;width:100%;max-width:260px}
+#pin-input{width:100%;text-align:center;font-size:28px;letter-spacing:12px;border:none;border-bottom:2px solid var(--greige);background:transparent;outline:none;color:var(--mocha);font-family:"Jost",sans-serif;padding:8px 0;-webkit-text-security:disc}
+#pin-error{font-size:12px;color:#c0392b;min-height:16px;letter-spacing:.5px}
+#pin-submit{width:100%;padding:14px;border-radius:14px;border:none;background:var(--walnut);color:var(--ivory);font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-family:"Jost",sans-serif}
+.pin-flower{font-size:44px;margin-bottom:16px}
+</style>
+
+<div id="pin-screen">
+  <div class="pin-flower">🌸</div>
+  <div class="pin-title">Life Planner</div>
+  <div class="pin-sub">Enter your PIN to continue</div>
+  <div class="pin-input-wrap">
+    <input id="pin-input" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="off"/>
+    <div id="pin-error"></div>
+    <button id="pin-submit">Unlock</button>
+  </div>
+</div>
 <div id="main"></div>
 <div class="mo hidden" id="mo"><div class="mo-box" id="mo-box"></div></div>
 
@@ -251,14 +272,26 @@ function fApplies(f,di){
   if(f.type==="days") return (f.days||[]).includes(di);
   if(f.type==="weekly") return di===(f.day||0);
   if(f.type==="monthly"){
-    const s=new Date();s.setDate(s.getDate()-s.getDay()+wkOff*7);
-    const t=new Date(s.getFullYear(),s.getMonth(),f.date||1);
-    return t.getDay()===di&&t.getMonth()===s.getMonth();
+    const now=new Date();
+    const weekStart=new Date(now);
+    weekStart.setDate(now.getDate()-now.getDay()+wkOff*7);
+    weekStart.setHours(0,0,0,0);
+    const weekEnd=new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate()+6);
+    weekEnd.setHours(23,59,59,999);
+    const target=new Date(weekStart.getFullYear(),weekStart.getMonth(),f.date||1);
+    return target>=weekStart&&target<=weekEnd&&target.getDay()===di;
   }
   if(f.type==="annually"){
-    const s=new Date();s.setDate(s.getDate()-s.getDay()+wkOff*7);
-    const t=new Date(s.getFullYear(),f.month||0,f.date||1);
-    return t.getDay()===di&&t.getMonth()===(f.month||0);
+    const now=new Date();
+    const weekStart=new Date(now);
+    weekStart.setDate(now.getDate()-now.getDay()+wkOff*7);
+    weekStart.setHours(0,0,0,0);
+    const weekEnd=new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate()+6);
+    weekEnd.setHours(23,59,59,999);
+    const target=new Date(weekStart.getFullYear(),f.month||0,f.date||1);
+    return target>=weekStart&&target<=weekEnd&&target.getDay()===di;
   }
   if(f.type==="once"){
     if(!f.date||f.month===undefined||!f.year) return false;
@@ -730,7 +763,7 @@ document.addEventListener("click",function(e){
   if(lbl){const inp=document.getElementById(lbl.dataset.focus);if(inp){inp.style.display="block";lbl.style.display="none";inp.focus();}return;}
 
   // modal overlay close
-  if(e.target===document.getElementById("mo")){closeModal();return;}
+  if(e.target.id==="pin-submit"){checkPin();return;}
 
   const btn=e.target.closest("[data-action]");
   if(!btn) return;
@@ -878,9 +911,53 @@ function exportMonth(){
   dlCSV(rows,"life-planner-"+MONTHS[dashM]+"-"+dashY+".csv");
 }
 
+// ── PIN Lock ───────────────────────────────────────────────────────────────────
+const CORRECT_PIN = "6452"; // ← change this to your PIN
+let pinUnlocked = false;
+
+function checkPin() {
+  const entered = document.getElementById("pin-input").value;
+  if(entered === CORRECT_PIN) {
+    pinUnlocked = true;
+    ls.set("pin_session", Date.now());
+    document.getElementById("pin-screen").style.display = "none";
+    document.getElementById("header").style.display = "";
+    document.getElementById("main").style.display = "";
+    initCats();
+    render();
+  } else {
+    const err = document.getElementById("pin-error");
+    err.textContent = "Incorrect PIN. Try again.";
+    document.getElementById("pin-input").value = "";
+    setTimeout(()=>err.textContent="", 2000);
+  }
+}
+
+function initApp() {
+  // Stay unlocked for 24 hours
+  const session = ls.get("pin_session", 0);
+  const hours24 = 24 * 60 * 60 * 1000;
+  if(Date.now() - session < hours24) {
+    pinUnlocked = true;
+    document.getElementById("pin-screen").style.display = "none";
+    document.getElementById("header").style.display = "";
+    document.getElementById("main").style.display = "";
+    initCats();
+    render();
+  } else {
+    document.getElementById("pin-screen").style.display = "flex";
+    document.getElementById("header").style.display = "none";
+    document.getElementById("main").style.display = "none";
+    setTimeout(()=>document.getElementById("pin-input").focus(), 100);
+  }
+}
+
+document.addEventListener("keydown", function(e) {
+  if(!pinUnlocked && e.key === "Enter") checkPin();
+});
+
 // ── Boot ───────────────────────────────────────────────────────────────────────
-initCats();
-render();
+initApp();
 window.addEventListener("resize",()=>{
   document.getElementById("main").style.paddingTop=document.getElementById("header").offsetHeight+"px";
 });
