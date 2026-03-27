@@ -280,10 +280,18 @@ function catOn(cat,di){
   if(cat.isHabits) return true;
   const freq=cat.freq||{type:"daily"};
   if(freq.type==="task-days"){
-    // show category only if at least one task applies today
     return (cat.tasks||[]).some(tk=>fApplies(tk.freq,di));
   }
-  return fApplies(freq,di);
+  if(!fApplies(freq,di)) return false;
+  // if category appears every day but ALL tasks have specific frequencies,
+  // only show the category if at least one task applies today
+  if((cat.tasks||[]).length>0){
+    const hasUnrestrictedTasks=(cat.tasks||[]).some(tk=>!tk.freq||tk.freq.type==="daily");
+    if(!hasUnrestrictedTasks){
+      return (cat.tasks||[]).some(tk=>fApplies(tk.freq,di));
+    }
+  }
+  return true;
 }
 function ord(n){const s=["th","st","nd","rd"],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])}
 
