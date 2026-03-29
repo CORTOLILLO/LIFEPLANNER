@@ -320,15 +320,17 @@ function catProg(cat,day,wk){
   wk=wk||wkKey();
   const di=DAYS.indexOf(day),ch=ls.get("checks:"+wk,{}),c=ls.get("custom_data",{});
   let done=0,total=0;
+  // support both old key format (wk:day:cat:tk) and new format (day:cat:tk)
+  function isChk(key){return !!(ch[key]||ch[wk+":"+key]);}
   if(cat.isHabits){
     ["forMe","forUs"].forEach(t=>[0,1,2].forEach(i=>{
       const v=c[wk+":"+day+":hab_"+t+"_"+i]||"";
-      if(v){total++;if(ch[day+":"+cat.id+":hab_"+t+"_"+i])done++;}
+      if(v){total++;if(isChk(day+":"+cat.id+":hab_"+t+"_"+i))done++;}
     }));
     return{done,total};
   }
   (cat.tasks||[]).forEach(tk=>{
-    if(fApplies(tk.freq,di)){total++;if(ch[day+":"+cat.id+":"+tk.id])done++;}
+    if(fApplies(tk.freq,di)){total++;if(isChk(day+":"+cat.id+":"+tk.id))done++;}
   });
   return{done,total};
 }
@@ -452,11 +454,12 @@ function buildDay(){
     const p=PALETTE[cat.color||0],isO=openSec===cat.id;
     const cardOpacity=isComplete?'0.45':isEmpty?'0.6':'1';
     h+='<div class="sec-card'+(isO?" open":"")+'" style="--ac:'+p.ac+';--bg:'+p.bg+';--lt:'+p.lt+';opacity:'+cardOpacity+'">';
+    const chkVal=(key)=>!!(ch[key]||ch[wk+":"+key]);
     if(cat.isHabits){
       let done=0,total=0;
       ["forMe","forUs"].forEach(t=>[0,1,2].forEach(i=>{
         const v=c[wk+":"+day+":hab_"+t+"_"+i]||"";
-        if(v){total++;if(ch[day+":"+cat.id+":hab_"+t+"_"+i])done++;}
+        if(v){total++;if(chkVal(day+":"+cat.id+":hab_"+t+"_"+i))done++;}
       }));
       h+=secHdr(cat,done,total,isO);
       h+='<div class="sec-body">';
@@ -464,7 +467,7 @@ function buildDay(){
         h+='<div class="hab-lbl">'+(t==="forMe"?"FOR ME":"FOR US")+"</div>";
         [0,1,2].forEach(i=>{
           const val=c[wk+":"+day+":hab_"+t+"_"+i]||"";
-          const done2=!!ch[day+":"+cat.id+":hab_"+t+"_"+i];
+          const done2=chkVal(day+":"+cat.id+":hab_"+t+"_"+i);
           h+=wiRow(cat.id,"hab_"+t+"_"+i,val,done2,p.ac,false,true,"Add "+(t==="forMe"?"personal":"shared")+" habit...");
         });
       });
@@ -474,7 +477,7 @@ function buildDay(){
     h+='<div class="sec-body">';
     (cat.tasks||[]).forEach(tk=>{
       if(!fApplies(tk.freq,di)) return;
-      const chk=!!ch[day+":"+cat.id+":"+tk.id];
+      const chk=chkVal(day+":"+cat.id+":"+tk.id);
       h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
     });
     if(!cat.tasks||cat.tasks.filter(tk=>fApplies(tk.freq,di)).length===0){
