@@ -414,21 +414,33 @@ function buildDay(){
   let h='<div class="dv-top"><div><div class="dv-title">'+day+"</div></div>"+
     '<button class="exp-btn" data-action="export-week">&#x2B07; EXPORT</button></div>';
 
-  // Split into incomplete and complete categories
+  // Three-tier sort: incomplete → empty → complete
   const activeCats=cats.filter(cat=>catOn(cat,di));
-  const incomplete=[],complete=[];
+  const incomplete=[],empty=[],complete=[];
   activeCats.forEach(cat=>{
     const p=catProg(cat,day,wk);
-    if(p.total>0&&p.done===p.total) complete.push(cat);
+    if(p.total===0) empty.push(cat);
+    else if(p.done===p.total) complete.push(cat);
     else incomplete.push(cat);
   });
-  const sorted=[...incomplete,...complete];
+  const sorted=[...incomplete,...empty,...complete];
 
   let completeDividerAdded=false;
+  let emptyDividerAdded=false;
   sorted.forEach(cat=>{
     const prog=catProg(cat,day,wk);
     const isComplete=prog.total>0&&prog.done===prog.total;
-    // add divider before first completed category
+    const isEmpty=prog.total===0;
+    // divider before first empty category
+    if(isEmpty&&!emptyDividerAdded){
+      emptyDividerAdded=true;
+      h+='<div style="display:flex;align-items:center;gap:10px;margin:16px 14px 8px;opacity:.3">'
+        +'<div style="flex:1;height:1px;background:var(--greige)"></div>'
+        +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--walnut);white-space:nowrap">No tasks today</div>'
+        +'<div style="flex:1;height:1px;background:var(--greige)"></div>'
+        +'</div>';
+    }
+    // divider before first completed category
     if(isComplete&&!completeDividerAdded){
       completeDividerAdded=true;
       h+='<div style="display:flex;align-items:center;gap:10px;margin:16px 14px 8px;opacity:.35">'
@@ -438,7 +450,8 @@ function buildDay(){
         +'</div>';
     }
     const p=PALETTE[cat.color||0],isO=openSec===cat.id;
-    h+='<div class="sec-card'+(isO?" open":"")+'" style="--ac:'+p.ac+';--bg:'+p.bg+';--lt:'+p.lt+';opacity:'+(isComplete?'0.55':'1')+'">';
+    const cardOpacity=isComplete?'0.45':isEmpty?'0.6':'1';
+    h+='<div class="sec-card'+(isO?" open":"")+'" style="--ac:'+p.ac+';--bg:'+p.bg+';--lt:'+p.lt+';opacity:'+cardOpacity+'">';
     if(cat.isHabits){
       let done=0,total=0;
       ["forMe","forUs"].forEach(t=>[0,1,2].forEach(i=>{
