@@ -414,7 +414,10 @@ function buildDay(){
   const wk=wkKey(),ch=chks(),c=cu();
   if(!cats.length) return emptyPlanner();
   let h='<div class="dv-top"><div><div class="dv-title">'+day+"</div></div>"+
-    '<button class="exp-btn" data-action="export-week">&#x2B07; EXPORT</button></div>';
+    '<div style="display:flex;gap:6px">'
+    +'<button class="exp-btn" style="background:#999;font-size:9px" data-action="debug">🔍 DEBUG</button>'
+    +'<button class="exp-btn" data-action="export-week">&#x2B07; EXPORT</button>'
+    +'</div></div>';
 
   // Three-tier sort: incomplete → empty → complete
   const activeCats=cats.filter(cat=>catOn(cat,di));
@@ -802,6 +805,7 @@ document.addEventListener("click",function(e){
   if(a.startsWith("view-")){view=a.slice(5);openSec=null;render();return;}
   if(a.startsWith("day-")){activeDay=a.slice(4);view="day";openSec=null;render();return;}
   if(a==="toggle-sec"){openSec=openSec===btn.dataset.sec?null:btn.dataset.sec;renderMain();return;}
+  if(a==="debug"){showDebug();return;}
   if(a==="export-week"){exportWeek();return;}
   if(a==="export-month"){exportMonth();return;}
   if(a==="dash-prev"){dashM--;if(dashM<0){dashM=11;dashY--;}renderMain();return;}
@@ -979,6 +983,15 @@ function initApp() {
 document.addEventListener("keydown", function(e) {
   if(!pinUnlocked && e.key === "Enter") checkPin();
 });
+
+// ── Debug ──────────────────────────────────────────────────────────────────────
+function showDebug(){
+  const wk=wkKey();
+  const ch=ls.get("checks:"+wk,{});
+  const keys=Object.keys(ch);
+  const trueKeys=keys.filter(k=>ch[k]);
+  alert("Week: "+wk+"\n\nChecked keys ("+trueKeys.length+"):\n"+trueKeys.slice(0,10).join("\n")+(trueKeys.length>10?"\n...":""));
+}
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
 initApp();
