@@ -413,10 +413,32 @@ function buildDay(){
   if(!cats.length) return emptyPlanner();
   let h='<div class="dv-top"><div><div class="dv-title">'+day+"</div></div>"+
     '<button class="exp-btn" data-action="export-week">&#x2B07; EXPORT</button></div>';
-  cats.forEach(cat=>{
-    if(!catOn(cat,di)) return;
+
+  // Split into incomplete and complete categories
+  const activeCats=cats.filter(cat=>catOn(cat,di));
+  const incomplete=[],complete=[];
+  activeCats.forEach(cat=>{
+    const{done,total}=catProg(cat,day,wk);
+    if(total>0&&done===total) complete.push(cat);
+    else incomplete.push(cat);
+  });
+  const sorted=[...incomplete,...complete];
+
+  let completeDividerAdded=false;
+  sorted.forEach(cat=>{
+    const{done,total}=catProg(cat,day,wk);
+    const isComplete=total>0&&done===total;
+    // add divider before first completed category
+    if(isComplete&&!completeDividerAdded){
+      completeDividerAdded=true;
+      h+='<div style="display:flex;align-items:center;gap:10px;margin:16px 14px 8px;opacity:.35">'
+        +'<div style="flex:1;height:1px;background:var(--greige)"></div>'
+        +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--walnut);white-space:nowrap">Completed</div>'
+        +'<div style="flex:1;height:1px;background:var(--greige)"></div>'
+        +'</div>';
+    }
     const p=PALETTE[cat.color||0],isO=openSec===cat.id;
-    h+='<div class="sec-card'+(isO?" open":"")+'" style="--ac:'+p.ac+';--bg:'+p.bg+';--lt:'+p.lt+'">';
+    h+='<div class="sec-card'+(isO?" open":"")+'" style="--ac:'+p.ac+';--bg:'+p.bg+';--lt:'+p.lt+';opacity:'+(isComplete?'0.55':'1')+'">';
     if(cat.isHabits){
       let done=0,total=0;
       ["forMe","forUs"].forEach(t=>[0,1,2].forEach(i=>{
@@ -435,7 +457,6 @@ function buildDay(){
       });
       h+="</div></div>";return;
     }
-    const{done,total}=catProg(cat,day,wk);
     h+=secHdr(cat,done,total,isO);
     h+='<div class="sec-body">';
     (cat.tasks||[]).forEach(tk=>{
