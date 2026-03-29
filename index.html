@@ -226,10 +226,20 @@ const ls={
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
 };
 function getCats(){return ls.get("planner_cats",null)}
-function saveCats(c){ls.set("planner_cats",c)}
+function saveCats(c){
+  ls.set("planner_cats",c);
+  // keep a backup any time we have real data
+  if(c&&c.length>0) ls.set("planner_cats_backup",c);
+}
 function initCats(){
   const existing=getCats();
-  if(!existing){
+  if(!existing||existing.length===0){
+    // try to restore from backup first
+    const backup=ls.get("planner_cats_backup",null);
+    if(backup&&backup.length>0){
+      saveCats(backup);
+      return;
+    }
     saveCats([]);mode="setup";return;
   }
   if(existing.length===0) mode="setup";
