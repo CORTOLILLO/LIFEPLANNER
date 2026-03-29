@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Life Planner"/>
+<link rel="apple-touch-icon" href="icon.png"/>
+<meta name="theme-color" content="#D9D2C6"/>
 <title>Life Planner</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <style>
@@ -226,14 +229,7 @@ function getCats(){return ls.get("planner_cats",null)}
 function saveCats(c){ls.set("planner_cats",c)}
 function initCats(){
   const existing=getCats();
-  // If no data at all, or data was preloaded from old version (has tasks baked in), start fresh
   if(!existing){
-    saveCats([]);mode="setup";return;
-  }
-  // Detect old preloaded version: had hardcoded ids like "health","cleaning" etc with preset tasks
-  const OLD_IDS=["health","cleaning","mealplan","preparation","todo","habits"];
-  const hasOld=existing.some(c=>OLD_IDS.includes(c.id));
-  if(hasOld){
     saveCats([]);mode="setup";return;
   }
   if(existing.length===0) mode="setup";
@@ -250,7 +246,7 @@ function saveChks(c){ls.set("checks:"+wkKey(),c)}
 function saveCu(c){ls.set("custom_data",c)}
 
 function toggle(catId,tk){
-  const c=chks();const key=wkKey()+":"+activeDay+":"+catId+":"+tk;
+  const c=chks();const key=activeDay+":"+catId+":"+tk;
   c[key]=!c[key];saveChks(c);renderHeader();renderMain();
 }
 function getHab(wk,day,t,i){return cu()[wk+":"+day+":hab_"+t+"_"+i]||""}
@@ -327,12 +323,12 @@ function catProg(cat,day,wk){
   if(cat.isHabits){
     ["forMe","forUs"].forEach(t=>[0,1,2].forEach(i=>{
       const v=c[wk+":"+day+":hab_"+t+"_"+i]||"";
-      if(v){total++;if(ch[wk+":"+day+":"+cat.id+":hab_"+t+"_"+i])done++;}
+      if(v){total++;if(ch[day+":"+cat.id+":hab_"+t+"_"+i])done++;}
     }));
     return{done,total};
   }
   (cat.tasks||[]).forEach(tk=>{
-    if(fApplies(tk.freq,di)){total++;if(ch[wk+":"+day+":"+cat.id+":"+tk.id])done++;}
+    if(fApplies(tk.freq,di)){total++;if(ch[day+":"+cat.id+":"+tk.id])done++;}
   });
   return{done,total};
 }
@@ -425,7 +421,7 @@ function buildDay(){
       let done=0,total=0;
       ["forMe","forUs"].forEach(t=>[0,1,2].forEach(i=>{
         const v=c[wk+":"+day+":hab_"+t+"_"+i]||"";
-        if(v){total++;if(ch[wk+":"+day+":"+cat.id+":hab_"+t+"_"+i])done++;}
+        if(v){total++;if(ch[day+":"+cat.id+":hab_"+t+"_"+i])done++;}
       }));
       h+=secHdr(cat,done,total,isO);
       h+='<div class="sec-body">';
@@ -433,7 +429,7 @@ function buildDay(){
         h+='<div class="hab-lbl">'+(t==="forMe"?"FOR ME":"FOR US")+"</div>";
         [0,1,2].forEach(i=>{
           const val=c[wk+":"+day+":hab_"+t+"_"+i]||"";
-          const done2=!!ch[wk+":"+day+":"+cat.id+":hab_"+t+"_"+i];
+          const done2=!!ch[day+":"+cat.id+":hab_"+t+"_"+i];
           h+=wiRow(cat.id,"hab_"+t+"_"+i,val,done2,p.ac,false,true,"Add "+(t==="forMe"?"personal":"shared")+" habit...");
         });
       });
@@ -444,7 +440,7 @@ function buildDay(){
     h+='<div class="sec-body">';
     (cat.tasks||[]).forEach(tk=>{
       if(!fApplies(tk.freq,di)) return;
-      const chk=!!ch[wk+":"+day+":"+cat.id+":"+tk.id];
+      const chk=!!ch[day+":"+cat.id+":"+tk.id];
       h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
     });
     if(!cat.tasks||cat.tasks.filter(tk=>fApplies(tk.freq,di)).length===0){
@@ -873,10 +869,10 @@ function exportWeek(){
     if(cat.isHabits){
       ["forMe","forUs"].forEach(t=>[0,1,2].forEach(i=>{
         const v=c[wk+":"+day+":hab_"+t+"_"+i]||"";
-        if(v) rows.push([wk,day,cat.name,(t==="forMe"?"For Me":"For Us")+": "+v,ch[wk+":"+day+":"+cat.id+":hab_"+t+"_"+i]?"Yes":"No"]);
+        if(v) rows.push([wk,day,cat.name,(t==="forMe"?"For Me":"For Us")+": "+v,ch[day+":"+cat.id+":hab_"+t+"_"+i]?"Yes":"No"]);
       }));return;
     }
-    (cat.tasks||[]).forEach(tk=>{if(fApplies(tk.freq,di))rows.push([wk,day,cat.name,tk.name,ch[wk+":"+day+":"+cat.id+":"+tk.id]?"Yes":"No"]);});
+    (cat.tasks||[]).forEach(tk=>{if(fApplies(tk.freq,di))rows.push([wk,day,cat.name,tk.name,ch[day+":"+cat.id+":"+tk.id]?"Yes":"No"]);});
   }));
   dlCSV(rows,"life-planner-week-"+wk+".csv");
 }
@@ -893,10 +889,10 @@ function exportMonth(){
       if(cat.isHabits){
         ["forMe","forUs"].forEach(t=>[0,1,2].forEach(i=>{
           const v=c[wk+":"+day+":hab_"+t+"_"+i]||"";
-          if(v)rows.push([wk,day,cat.name,(t==="forMe"?"For Me":"For Us")+": "+v,ch[wk+":"+day+":"+cat.id+":hab_"+t+"_"+i]?"Yes":"No"]);
+          if(v)rows.push([wk,day,cat.name,(t==="forMe"?"For Me":"For Us")+": "+v,ch[day+":"+cat.id+":hab_"+t+"_"+i]?"Yes":"No"]);
         }));return;
       }
-      (cat.tasks||[]).forEach(tk=>{if(fApplies(tk.freq,di))rows.push([wk,day,cat.name,tk.name,ch[wk+":"+day+":"+cat.id+":"+tk.id]?"Yes":"No"]);});
+      (cat.tasks||[]).forEach(tk=>{if(fApplies(tk.freq,di))rows.push([wk,day,cat.name,tk.name,ch[day+":"+cat.id+":"+tk.id]?"Yes":"No"]);});
     }));
   });
   dlCSV(rows,"life-planner-"+MONTHS[dashM]+"-"+dashY+".csv");
@@ -927,7 +923,7 @@ function checkPin() {
 function initApp() {
   // Stay unlocked for 24 hours
   const session = ls.get("pin_session", 0);
-  const hours24 = 24 * 60 * 60 * 1000;
+  const hours24 = 7 * 24 * 60 * 60 * 1000; // 7 days
   if(Date.now() - session < hours24) {
     pinUnlocked = true;
     document.getElementById("pin-screen").style.display = "none";
