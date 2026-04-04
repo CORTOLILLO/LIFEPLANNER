@@ -182,6 +182,7 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:"Jost
     <button id="pin-submit">Unlock</button>
   </div>
 </div>
+<input type="file" id="import-file-input" accept=".json" style="display:none"/>
 <div id="main"></div>
 <div class="mo hidden" id="mo"><div class="mo-box" id="mo-box"></div></div>
 
@@ -630,6 +631,8 @@ function buildSetup(){
     +'<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">'
     +'<button class="add-cat-btn" data-action="new-cat" style="margin-top:0">&#xFF0B; Add New Category</button>'
     +'<button class="done-btn" data-action="go-planner" style="margin-top:0">&#x2713; Done &mdash; Go to Planner</button>'
+    +'<button class="add-cat-btn" data-action="export-all" style="margin-top:0">&#x2B07; Export All Data (Backup)</button>'
+    +'<button class="add-cat-btn" data-action="import-all" style="margin-top:0">&#x2B06; Import Data (Restore)</button>'
     +'</div>';
   if(!cats.length){
     h+='<div style="text-align:center;padding:40px 20px;opacity:.5">'
@@ -818,6 +821,8 @@ document.addEventListener("click",function(e){
   if(a.startsWith("view-")){view=a.slice(5);openSec=null;render();return;}
   if(a.startsWith("day-")){activeDay=a.slice(4);view="day";openSec=null;render();return;}
   if(a==="toggle-sec"){openSec=openSec===btn.dataset.sec?null:btn.dataset.sec;renderMain();return;}
+  if(a==="export-all"){exportAll();return;}
+  if(a==="import-all"){importAll();return;}
   if(a==="debug"){showDebug();return;}
   if(a==="export-week"){exportWeek();return;}
   if(a==="export-month"){exportMonth();return;}
@@ -1019,6 +1024,41 @@ function migrateLegacyChecks(){
     if(changed) ls.set(storageKey,newData);
   });
 }
+// ── Export / Import All Data ───────────────────────────────────────────────────
+function exportAll(){
+  const data={};
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    data[k]=ls.get(k);
+  }
+  const json=JSON.stringify(data,null,2);
+  const a=document.createElement("a");
+  a.href="data:application/json;charset=utf-8,"+encodeURIComponent(json);
+  a.download="lifeplanner-backup-"+new Date().toISOString().split("T")[0]+".json";
+  a.click();
+}
+function importAll(){
+  document.getElementById("import-file-input").click();
+}
+function handleImport(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const data=JSON.parse(ev.target.result);
+      if(!confirm("This will restore all your data. Continue?")) return;
+      Object.keys(data).forEach(k=>ls.set(k,data[k]));
+      alert("Data restored! Reloading...");
+      location.reload();
+    }catch(err){
+      alert("Could not read file. Make sure it's a valid backup file.");
+    }
+  };
+  reader.readAsText(file);
+  e.target.value="";
+}
+
 function showDebug(){
   const wk=wkKey();
   const ch=ls.get("checks:"+wk,{});
@@ -1029,6 +1069,7 @@ function showDebug(){
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
 migrateLegacyChecks();
+document.getElementById("import-file-input").addEventListener("change",handleImport);
 initApp();
 window.addEventListener("resize",()=>{
   document.getElementById("main").style.paddingTop=document.getElementById("header").offsetHeight+"px";
