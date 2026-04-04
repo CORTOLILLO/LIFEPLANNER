@@ -217,45 +217,111 @@ const QS=[
   {name:"SHOPPING",icon:"🛒",color:6,isHabits:false,hint:"Groceries, errands, lists"},
 ];
 
+// ── Supabase Config ────────────────────────────────────────────────────────────
+const SUPABASE_URL="https://tgwdkhjbhhhzevgmuiyi.supabase.co";
+const SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRnd2RraGpiaGhoemV2Z211aXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzA5NjYsImV4cCI6MjA5MDg0Njk2Nn0.dNjQTwVi4TrXuM1n-xbAb1gnFfDO3ZfAoyOmC8zgPUE";
+
+async function sbGet(id){
+  try{
+    const r=await fetch(SUPABASE_URL+"/rest/v1/planner_data?id=eq."+id+"&select=data",{
+      headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY}
+    });
+    const d=await r.json();
+    return d&&d[0]?d[0].data:null;
+  }catch{return null;}
+}
+
+async function sbSet(id,data){
+  try{
+    await fetch(SUPABASE_URL+"/rest/v1/planner_data",{
+      method:"POST",
+      headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,
+        "Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},
+      body:JSON.stringify({id,data,updated_at:new Date().toISOString()})
+    });
+  }catch(e){console.error("sbSet error",e);}
+}
+
 // ── State ──────────────────────────────────────────────────────────────────────
 let mode="planner",view="day",wkOff=0,activeDay=DAYS[new Date().getDay()],openSec=null;
 let dashM=new Date().getMonth(),dashY=new Date().getFullYear();
 let mFreq={},mCatId=null,mTaskId=null;
 
+// in-memory cache so UI stays snappy
+let _cats=null,_custom={},_checks={};
+
 // ── Storage ────────────────────────────────────────────────────────────────────
+// Keep localStorage as fast local cache, Supabase as source of truth
 const ls={
   get(k,fb=null){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch{return fb}},
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
 };
-function getCats(){return ls.get("planner_cats",null)}
+
+function getCats(){return _cats}
 function saveCats(c){
+  _cats=c;
   ls.set("planner_cats",c);
-  // keep a backup any time we have real data
-  if(c&&c.length>0) ls.set("planner_cats_backup",c);
+  sbSet("categories",c);
 }
-function initCats(){
-  const existing=getCats();
-  if(!existing||existing.length===0){
-    // try to restore from backup first
-    const backup=ls.get("planner_cats_backup",null);
-    if(backup&&backup.length>0){
-      saveCats(backup);
-      return;
-    }
-    saveCats([]);mode="setup";return;
+
+async function loadFromSupabase(){
+  // load categories
+  const cats=await sbGet("categories");
+  if(cats&&Array.isArray(cats)&&cats.length>0){
+    _cats=cats;ls.set("planner_cats",cats);
+  } else {
+    // fall back to localStorage
+    _cats=ls.get("planner_cats",null);
+    if(_cats&&_cats.length>0) sbSet("categories",_cats);
   }
-  if(existing.length===0) mode="setup";
+
+  // load custom data (habits, write-ins)
+  const cu=await sbGet("custom_data");
+  if(cu&&typeof cu==="object"){
+    _custom=cu;ls.set("custom_data",cu);
+  } else {
+    _custom=ls.get("custom_data",{});
+    if(Object.keys(_custom).length>0) sbSet("custom_data",_custom);
+  }
+
+  // load all check weeks
+  const allChecks=await sbGet("all_checks");
+  if(allChecks&&typeof allChecks==="object"){
+    _checks=allChecks;
+    // sync to localStorage
+    Object.keys(allChecks).forEach(wk=>ls.set("checks:"+wk,allChecks[wk]));
+  } else {
+    // build from localStorage
+    const lsKeys=Object.keys(localStorage).filter(k=>k.startsWith("checks:"));
+    lsKeys.forEach(k=>{const wk=k.replace("checks:","");_checks[wk]=ls.get(k,{});});
+    if(Object.keys(_checks).length>0) sbSet("all_checks",_checks);
+  }
 }
+
+function initCats(){
+  if(!_cats||_cats.length===0){mode="setup";}
+}
+
 function wkKey(off=wkOff){
   const n=new Date(),s=new Date(n);s.setDate(n.getDate()-n.getDay()+off*7);
   return s.toISOString().split("T")[0];
 }
 function todayName(){return DAYS[new Date().getDay()]}
 function parseWk(k){const d=new Date(k+"T00:00:00");return{month:d.getMonth(),year:d.getFullYear(),sunday:d}}
-function chks(){return ls.get("checks:"+wkKey(),{})}
-function cu(){return ls.get("custom_data",{})}
-function saveChks(c){ls.set("checks:"+wkKey(),c)}
-function saveCu(c){ls.set("custom_data",c)}
+
+function chks(){return _checks[wkKey()]||{}}
+function cu(){return _custom}
+function saveChks(c){
+  const wk=wkKey();
+  _checks[wk]=c;
+  ls.set("checks:"+wk,c);
+  sbSet("all_checks",_checks);
+}
+function saveCu(c){
+  _custom=c;
+  ls.set("custom_data",c);
+  sbSet("custom_data",c);
+}
 
 function toggle(catId,tk){
   const c=chks();const key=activeDay+":"+catId+":"+tk;
@@ -581,7 +647,7 @@ function buildWeek(){
 // ── Dashboard ──────────────────────────────────────────────────────────────────
 function buildDash(){
   const cats=getCats()||[];
-  const allWks=Object.keys(localStorage).filter(k=>k.startsWith("checks:")).map(k=>k.slice(7));
+  const allWks=Object.keys(_checks);
   const mWks=allWks.filter(k=>{const{month,year}=parseWk(k);return month===dashM&&year===dashY;}).sort();
   let mDone=0,mTotal=0;const ct={};cats.forEach(c=>{ct[c.id]={done:0,total:0}});
   const wSums=mWks.map(wk=>{
@@ -937,12 +1003,12 @@ function exportWeek(){
 }
 function exportMonth(){
   const cats=getCats()||[];
-  const allWks=Object.keys(localStorage).filter(k=>k.startsWith("checks:")).map(k=>k.slice(7));
+  const allWks=Object.keys(_checks);
   const mWks=allWks.filter(k=>{const{month,year}=parseWk(k);return month===dashM&&year===dashY;});
   const c=ls.get("custom_data",{});
   const rows=[["Week","Day","Category","Task","Completed"]];
   mWks.forEach(wk=>{
-    const ch=ls.get("checks:"+wk,{});
+    const ch=_checks[wk]||ls.get("checks:"+wk,{});
     DAYS.forEach((day,di)=>cats.forEach(cat=>{
       if(!catOn(cat,di)) return;
       if(cat.isHabits){
@@ -961,14 +1027,15 @@ function exportMonth(){
 const CORRECT_PIN = "6452"; // ← change this to your PIN
 let pinUnlocked = false;
 
-function checkPin() {
+async function checkPin() {
   const entered = document.getElementById("pin-input").value;
   if(entered === CORRECT_PIN) {
     pinUnlocked = true;
     ls.set("pin_session", Date.now());
     document.getElementById("pin-screen").style.display = "none";
     document.getElementById("header").style.display = "";
-    document.getElementById("main").style.display = "";
+    document.getElementById("main").innerHTML='<div style="text-align:center;padding:100px 30px;opacity:.4"><div style="font-family:\'Cormorant Garamond\',serif;font-size:22px;font-style:italic;color:var(--mocha)">Loading your planner...</div></div>';
+    await loadFromSupabase();
     initCats();
     render();
   } else {
@@ -979,24 +1046,7 @@ function checkPin() {
   }
 }
 
-function initApp() {
-  // Stay unlocked for 24 hours
-  const session = ls.get("pin_session", 0);
-  const hours24 = 7 * 24 * 60 * 60 * 1000; // 7 days
-  if(Date.now() - session < hours24) {
-    pinUnlocked = true;
-    document.getElementById("pin-screen").style.display = "none";
-    document.getElementById("header").style.display = "";
-    document.getElementById("main").style.display = "";
-    initCats();
-    render();
-  } else {
-    document.getElementById("pin-screen").style.display = "flex";
-    document.getElementById("header").style.display = "none";
-    document.getElementById("main").style.display = "none";
-    setTimeout(()=>document.getElementById("pin-input").focus(), 100);
-  }
-}
+function initApp(){}
 
 document.addEventListener("keydown", function(e) {
   if(!pinUnlocked && e.key === "Enter") checkPin();
@@ -1061,16 +1111,39 @@ function handleImport(e){
 
 function showDebug(){
   const wk=wkKey();
-  const ch=ls.get("checks:"+wk,{});
+  const ch=_checks[wk]||ls.get("checks:"+wk,{});
   const keys=Object.keys(ch);
   const trueKeys=keys.filter(k=>ch[k]);
   alert("Week: "+wk+"\n\nChecked keys ("+trueKeys.length+"):\n"+trueKeys.slice(0,10).join("\n")+(trueKeys.length>10?"\n...":""));
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
-migrateLegacyChecks();
+async function boot(){
+  // show loading screen
+  document.getElementById("main").innerHTML='<div style="text-align:center;padding:100px 30px;opacity:.4"><div style="font-family:Cormorant Garamond,serif;font-size:22px;font-style:italic;color:var(--mocha)">Loading your planner...</div></div>';
+  document.getElementById("header").style.display="none";
+  // load all data from Supabase
+  await loadFromSupabase();
+  // check pin session
+  const session=ls.get("pin_session",0);
+  const days7=7*24*60*60*1000;
+  if(Date.now()-session<days7){
+    pinUnlocked=true;
+    document.getElementById("pin-screen").style.display="none";
+    document.getElementById("header").style.display="";
+    initCats();
+    render();
+  } else {
+    document.getElementById("pin-screen").style.display="flex";
+    document.getElementById("header").style.display="none";
+    document.getElementById("main").innerHTML="";
+    setTimeout(()=>document.getElementById("pin-input").focus(),100);
+  }
+}
+
 document.getElementById("import-file-input").addEventListener("change",handleImport);
-initApp();
+migrateLegacyChecks();
+boot();
 window.addEventListener("resize",()=>{
   document.getElementById("main").style.paddingTop=document.getElementById("header").offsetHeight+"px";
 });
