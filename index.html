@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -340,7 +341,9 @@ function catProg(cat,day,wk){
     return{done,total};
   }
   (cat.tasks||[]).forEach(tk=>{
-    if(fApplies(tk.freq,di)){total++;if(isChk(day+":"+cat.id+":"+tk.id))done++;}
+    const checked=isChk(day+":"+cat.id+":"+tk.id);
+    const applies=fApplies(tk.freq,di);
+    if(applies||checked){total++;if(checked)done++;}
   });
   return{done,total};
 }
@@ -489,11 +492,11 @@ function buildDay(){
     h+=secHdr(cat,prog.done,prog.total,isO);
     h+='<div class="sec-body">';
     (cat.tasks||[]).forEach(tk=>{
-      if(!fApplies(tk.freq,di)) return;
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
+      if(!fApplies(tk.freq,di)&&!chk) return;
       h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
     });
-    if(!cat.tasks||cat.tasks.filter(tk=>fApplies(tk.freq,di)).length===0){
+    if(!cat.tasks||cat.tasks.filter(tk=>fApplies(tk.freq,di)||chkVal(day+":"+cat.id+":"+tk.id)).length===0){
       h+='<div style="font-size:13px;opacity:.4;padding:4px 0 8px;font-style:italic">No tasks for today.</div>';
     }
     h+='<button class="more-btn" data-action="new-task" data-cat="'+cat.id+'">+ Add Task</button>';
@@ -1031,5 +1034,6 @@ window.addEventListener("resize",()=>{
   document.getElementById("main").style.paddingTop=document.getElementById("header").offsetHeight+"px";
 });
 </script>
+
 </body>
 </html>
