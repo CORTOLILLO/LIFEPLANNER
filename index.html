@@ -994,7 +994,28 @@ document.addEventListener("keydown", function(e) {
   if(!pinUnlocked && e.key === "Enter") checkPin();
 });
 
-// ── Debug ──────────────────────────────────────────────────────────────────────
+function migrateLegacyChecks(){
+  // Old format: checks:wkKey → { "wkKey:day:cat:task": true }
+  // New format: checks:wkKey → { "day:cat:task": true }
+  const allKeys=Object.keys(localStorage).filter(k=>k.startsWith("checks:"));
+  allKeys.forEach(storageKey=>{
+    const wk=storageKey.replace("checks:","");
+    const data=ls.get(storageKey,{});
+    let changed=false;
+    const newData={};
+    Object.keys(data).forEach(k=>{
+      if(k.startsWith(wk+":")){
+        // old format - strip the wkKey: prefix
+        const newKey=k.slice(wk.length+1);
+        newData[newKey]=data[k];
+        changed=true;
+      } else {
+        newData[k]=data[k];
+      }
+    });
+    if(changed) ls.set(storageKey,newData);
+  });
+}
 function showDebug(){
   const wk=wkKey();
   const ch=ls.get("checks:"+wk,{});
@@ -1004,6 +1025,7 @@ function showDebug(){
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
+migrateLegacyChecks();
 initApp();
 window.addEventListener("resize",()=>{
   document.getElementById("main").style.paddingTop=document.getElementById("header").offsetHeight+"px";
