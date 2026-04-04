@@ -385,7 +385,7 @@ function ord(n){const s=["th","st","nd","rd"],v=n%100;return n+(s[(v-20)%10]||s[
 // ── Progress ───────────────────────────────────────────────────────────────────
 function catProg(cat,day,wk){
   wk=wk||wkKey();
-  const di=DAYS.indexOf(day),ch=ls.get("checks:"+wk,{}),c=ls.get("custom_data",{});
+  const di=DAYS.indexOf(day),ch=_checks[wk]||{},c=_custom||{};
   let done=0,total=0;
   // support both old key format (wk:day:cat:tk) and new format (day:cat:tk)
   function isChk(key){return !!(ch[key]||ch[wk+":"+key]);}
@@ -997,7 +997,7 @@ function exportMonth(){
   const c=ls.get("custom_data",{});
   const rows=[["Week","Day","Category","Task","Completed"]];
   mWks.forEach(wk=>{
-    const ch=_checks[wk]||ls.get("checks:"+wk,{});
+    const ch=_checks[wk]||{};
     DAYS.forEach((day,di)=>cats.forEach(cat=>{
       if(!catOn(cat,di)) return;
       if(cat.isHabits){
@@ -1100,7 +1100,7 @@ function handleImport(e){
 
 function showDebug(){
   const wk=wkKey();
-  const ch=_checks[wk]||ls.get("checks:"+wk,{});
+  const ch=_checks[wk]||{};
   const keys=Object.keys(ch);
   const trueKeys=keys.filter(k=>ch[k]);
   alert("Week: "+wk+"\n\nChecked keys ("+trueKeys.length+"):\n"+trueKeys.slice(0,10).join("\n")+(trueKeys.length>10?"\n...":""));
