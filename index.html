@@ -260,42 +260,25 @@ const ls={
 function getCats(){return _cats}
 function saveCats(c){
   _cats=c;
-  ls.set("planner_cats",c);
   sbSet("categories",c);
 }
 
 async function loadFromSupabase(){
   // load categories
   const cats=await sbGet("categories");
-  if(cats&&Array.isArray(cats)&&cats.length>0){
-    _cats=cats;ls.set("planner_cats",cats);
+  if(cats&&Array.isArray(cats)){
+    _cats=cats;
   } else {
-    // fall back to localStorage
-    _cats=ls.get("planner_cats",null);
-    if(_cats&&_cats.length>0) sbSet("categories",_cats);
+    _cats=[];
   }
 
   // load custom data (habits, write-ins)
   const cu=await sbGet("custom_data");
-  if(cu&&typeof cu==="object"){
-    _custom=cu;ls.set("custom_data",cu);
-  } else {
-    _custom=ls.get("custom_data",{});
-    if(Object.keys(_custom).length>0) sbSet("custom_data",_custom);
-  }
+  _custom=(cu&&typeof cu==="object")?cu:{};
 
-  // load all check weeks
+  // load all checks
   const allChecks=await sbGet("all_checks");
-  if(allChecks&&typeof allChecks==="object"){
-    _checks=allChecks;
-    // sync to localStorage
-    Object.keys(allChecks).forEach(wk=>ls.set("checks:"+wk,allChecks[wk]));
-  } else {
-    // build from localStorage
-    const lsKeys=Object.keys(localStorage).filter(k=>k.startsWith("checks:"));
-    lsKeys.forEach(k=>{const wk=k.replace("checks:","");_checks[wk]=ls.get(k,{});});
-    if(Object.keys(_checks).length>0) sbSet("all_checks",_checks);
-  }
+  _checks=(allChecks&&typeof allChecks==="object")?allChecks:{};
 }
 
 function initCats(){
@@ -314,12 +297,10 @@ function cu(){return _custom}
 function saveChks(c){
   const wk=wkKey();
   _checks[wk]=c;
-  ls.set("checks:"+wk,c);
   sbSet("all_checks",_checks);
 }
 function saveCu(c){
   _custom=c;
-  ls.set("custom_data",c);
   sbSet("custom_data",c);
 }
 
