@@ -286,11 +286,19 @@ function initCats(){
 }
 
 function wkKey(off=wkOff){
-  const n=new Date(),s=new Date(n);s.setDate(n.getDate()-n.getDay()+off*7);
-  return s.toISOString().split("T")[0];
+  const n=new Date();
+  const sun=new Date(n.getFullYear(),n.getMonth(),n.getDate()-n.getDay()+off*7);
+  const y=sun.getFullYear();
+  const m=String(sun.getMonth()+1).padStart(2,"0");
+  const d=String(sun.getDate()).padStart(2,"0");
+  return y+"-"+m+"-"+d;
 }
 function todayName(){return DAYS[new Date().getDay()]}
-function parseWk(k){const d=new Date(k+"T00:00:00");return{month:d.getMonth(),year:d.getFullYear(),sunday:d}}
+function parseWk(k){
+  const parts=k.split("-");
+  const d=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
+  return{month:d.getMonth(),year:d.getFullYear(),sunday:d};
+}
 
 function chks(){return _checks[wkKey()]||{}}
 function cu(){return _custom}
