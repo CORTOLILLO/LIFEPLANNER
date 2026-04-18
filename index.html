@@ -399,13 +399,27 @@ function catProg(cat,day,wk){
   (cat.tasks||[]).forEach(tk=>{
     const checked=isChk(day+":"+cat.id+":"+tk.id);
     const applies=fApplies(tk.freq,di)&&taskCreatedBeforeOrOnDay(tk,wk,day);
-    if(!applies&&!checked) return;
     // if rollover and unchecked on a past day, don't count it
     if(applies&&!checked&&tk.rollover){
       const todayDi=DAYS.indexOf(todayName());
       const isPast=(wk<wkKey(0))||(wk===wkKey(0)&&di<todayDi);
       if(isPast) return;
     }
+    // check if a rollover task has rolled INTO this day
+    if(!applies&&!checked&&tk.rollover){
+      const prevDi=(di+6)%7;
+      const prevDay=DAYS[prevDi];
+      const prevWk=wkKey(di===0?wkOff-1:wkOff);
+      const prevCh=_checks[prevWk]||{};
+      const wasAssignedYesterday=fApplies(tk.freq,prevDi)&&taskCreatedBeforeOrOnDay(tk,prevWk,prevDay);
+      const wasCheckedYesterday=!!(prevCh[prevDay+":"+cat.id+":"+tk.id]);
+      if(wasAssignedYesterday&&!wasCheckedYesterday){
+        total++;// count it as a task for today
+        return;
+      }
+      return;
+    }
+    if(!applies&&!checked) return;
     total++;
     if(checked) done++;
   });
