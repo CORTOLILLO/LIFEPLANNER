@@ -550,45 +550,35 @@ function buildDay(){
     (cat.tasks||[]).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const applies=fApplies(tk.freq,di)&&taskCreatedBeforeOrOnDay(tk,wk,day);
-      // check if this task has rolled over TO tomorrow (so hide it today if unchecked)
-      let rolledToNext=false;
-      if(applies&&!chk&&tk.rollover){
-        const nextDi=(di+1)%7;
-        const nextDay=DAYS[nextDi];
-        const nextWk=wkKey(di===6?wkOff+1:wkOff);
-        const nextApplies=fApplies(tk.freq,nextDi)&&taskCreatedBeforeOrOnDay(tk,nextWk,nextDay);
-        // if it doesn't naturally apply tomorrow, it will roll over there - hide from today
-        if(!nextApplies) rolledToNext=false; // still show today since tomorrow won't have it naturally
+
+      if(applies){
+        // task naturally belongs here
+        if(tk.rollover&&!chk){
+          // rollover + unchecked: check if this is a past day
+          const todayDi=DAYS.indexOf(todayName());
+          const isPast=(wkOff<0)||(wkOff===0&&di<todayDi);
+          if(isPast) return; // hide from past — it rolled forward
+        }
+        h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
+        return;
       }
-      // check rollover: show today if was assigned yesterday and not checked there
-      let rolledOver=false;
-      if(!applies&&!chk&&tk.rollover){
+
+      // task doesn't naturally belong here — check if it rolled over FROM yesterday
+      if(tk.rollover&&!chk){
         const prevDi=(di+6)%7;
         const prevDay=DAYS[prevDi];
         const prevWk=wkKey(di===0?wkOff-1:wkOff);
         const prevCh=_checks[prevWk]||{};
-        const wasAssigned=fApplies(tk.freq,prevDi)&&taskCreatedBeforeOrOnDay(tk,prevWk,prevDay);
-        const wasChecked=!!(prevCh[prevDay+":"+cat.id+":"+tk.id]);
-        if(wasAssigned&&!wasChecked) rolledOver=true;
-      }
-      // if applies today and rollover enabled and not checked, hide from today — it shows on next day
-      if(applies&&!chk&&tk.rollover&&!rolledOver){
-        // check if tomorrow is a different day (won't naturally have this task)
-        const nextDi=(di+1)%7;
-        const nextDay=DAYS[nextDi];
-        const nextWk=wkKey(di===6?wkOff+1:wkOff);
-        const tomorrowHasIt=fApplies(tk.freq,nextDi)&&taskCreatedBeforeOrOnDay(tk,nextWk,nextDay);
-        if(!tomorrowHasIt){
-          // will roll to tomorrow, so hide today after the day ends — but still show today so user can check it
-          // only hide if we're viewing a past day
-          const todayName2=todayName();
-          const todayDi=DAYS.indexOf(todayName2);
-          const isPastDay=(wkOff<0)||(wkOff===0&&di<todayDi);
-          if(isPastDay) return; // hide from past days
+        const wasAssignedYesterday=fApplies(tk.freq,prevDi)&&taskCreatedBeforeOrOnDay(tk,prevWk,prevDay);
+        const wasCheckedYesterday=!!(prevCh[prevDay+":"+cat.id+":"+tk.id]);
+        if(wasAssignedYesterday&&!wasCheckedYesterday){
+          h+=fixedRow(cat.id,tk.id,tk.name+" ↻",chk,p.ac);
+          return;
         }
       }
-      if(!applies&&!chk&&!rolledOver) return;
-      h+=fixedRow(cat.id,tk.id,tk.name+(rolledOver?" ↻":""),chk,p.ac);
+
+      // show if it was checked here (e.g. checked on a non-assigned day)
+      if(chk) h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
     });
     if(!cat.tasks||cat.tasks.filter(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
