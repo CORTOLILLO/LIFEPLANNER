@@ -549,10 +549,25 @@ function buildDay(){
     h+='<div class="sec-body">';
     (cat.tasks||[]).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
-      if(!fApplies(tk.freq,di)&&!chk) return;
-      h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
+      const applies=fApplies(tk.freq,di);
+      // check rollover: show today if was assigned yesterday and not checked
+      let rolledOver=false;
+      if(!applies&&!chk&&tk.rollover){
+        const prevDi=(di+6)%7;
+        const prevDay=DAYS[prevDi];
+        const prevWk=wkKey(di===0?wkOff-1:wkOff);
+        const prevCh=_checks[prevWk]||{};
+        const wasAssigned=fApplies(tk.freq,prevDi);
+        const wasChecked=!!(prevCh[prevDay+":"+cat.id+":"+tk.id]);
+        if(wasAssigned&&!wasChecked) rolledOver=true;
+      }
+      if(!applies&&!chk&&!rolledOver) return;
+      h+=fixedRow(cat.id,tk.id,tk.name+(rolledOver?" ↻":""),chk,p.ac);
     });
-    if(!cat.tasks||cat.tasks.filter(tk=>fApplies(tk.freq,di)||chkVal(day+":"+cat.id+":"+tk.id)).length===0){
+    if(!cat.tasks||cat.tasks.filter(tk=>{
+      const chk=chkVal(day+":"+cat.id+":"+tk.id);
+      return fApplies(tk.freq,di)||chk||tk.rollover;
+    }).length===0){
       h+='<div style="font-size:13px;opacity:.4;padding:4px 0 8px;font-style:italic">No tasks for today.</div>';
     }
     h+='<button class="more-btn" data-action="new-task" data-cat="'+cat.id+'">+ Add Task</button>';
@@ -697,33 +712,60 @@ function buildSetup(){
   }
   cats.forEach((cat,ci)=>{
     const p=PALETTE[cat.color||0];
+    const isOpen=openSec===("setup_"+cat.id);
+    // filter out completed once tasks
+    const visibleTasks=(cat.tasks||[]).filter(tk=>{
+      if(tk.freq&&tk.freq.type==="once"){
+        // hide if it was completed on its date
+        const wk=wkKey();
+        const allChks=_checks||{};
+        const completed=Object.keys(allChks).some(w=>allChks[w][tk.freq.date+"_"+tk.id]||Object.keys(allChks[w]).some(k=>k.includes(cat.id+":"+tk.id)&&allChks[w][k]));
+        return !completed;
+      }
+      return true;
+    });
+    // sort tasks by day order
+    const dayOrder={daily:-1,days:0,weekly:1,monthly:2,annually:3,once:4};
+    const sortedTasks=[...visibleTasks].sort((a,b)=>{
+      const fa=a.freq||{type:"daily"},fb=b.freq||{type:"daily"};
+      const oa=dayOrder[fa.type]??0,ob=dayOrder[fb.type]??0;
+      if(oa!==ob) return oa-ob;
+      // same type - sort by first day
+      if(fa.type==="days"&&fb.type==="days") return Math.min(...(fa.days||[0]))-Math.min(...(fb.days||[0]));
+      if(fa.type==="monthly"&&fb.type==="monthly") return (fa.date||1)-(fb.date||1);
+      if(fa.type==="annually"&&fb.type==="annually") return fa.month!==fb.month?(fa.month||0)-(fb.month||0):(fa.date||1)-(fb.date||1);
+      return 0;
+    });
     h+='<div class="s-cat" style="border-color:'+p.lt+'">'
-      +'<div class="s-cat-hdr">'
+      +'<div class="s-cat-hdr" data-action="toggle-sec" data-sec="setup_'+cat.id+'" style="cursor:pointer">'
       +'<span style="font-size:22px">'+cat.icon+"</span>"
       +'<div style="flex:1"><div class="s-cat-name" style="color:'+p.ac+'">'+cat.name+"</div>"
-      +'<div class="s-cat-freq">'+fLabel(cat.freq)+"</div></div>"
+      +'<div class="s-cat-freq">'+fLabel(cat.freq)+(sortedTasks.length>0?" · "+sortedTasks.length+" task"+(sortedTasks.length!==1?"s":""):"")+"</div></div>"
       +'<div class="s-cat-btns">'
       +(ci>0?'<button class="ibtn" data-action="cat-up" data-ci="'+ci+'">&#x2191;</button>':"")
       +(ci<cats.length-1?'<button class="ibtn" data-action="cat-dn" data-ci="'+ci+'">&#x2193;</button>':"")
       +'<button class="ibtn" data-action="edit-cat" data-cat="'+cat.id+'">✏️</button>'
       +'<button class="ibtn" data-action="del-cat" data-cat="'+cat.id+'">🗑️</button>'
+      +'<span style="font-size:14px;opacity:.3;margin-left:2px">'+(isOpen?"▾":"▸")+"</span>"
       +"</div></div>";
-    if(!cat.isHabits&&(cat.tasks||[]).length>0){
-      h+='<div class="s-tasks">';
-      cat.tasks.forEach(tk=>{
-        h+='<div class="s-task">'
-          +'<div style="flex:1"><div class="s-task-name">'+esc(tk.name)+"</div>"
-          +'<div class="s-task-freq">'+fLabel(tk.freq)+"</div></div>"
-          +'<button class="ibtn" data-action="edit-task" data-cat="'+cat.id+'" data-task="'+tk.id+'">✏️</button>'
-          +'<button class="ibtn" data-action="del-task" data-cat="'+cat.id+'" data-task="'+tk.id+'">🗑️</button>'
+    if(isOpen){
+      if(!cat.isHabits&&sortedTasks.length>0){
+        h+='<div class="s-tasks">';
+        sortedTasks.forEach(tk=>{
+          h+='<div class="s-task">'
+            +'<div style="flex:1"><div class="s-task-name">'+esc(tk.name)+(tk.rollover?' <span style="font-size:10px;opacity:.5">↻</span>':"")+"</div>"
+            +'<div class="s-task-freq">'+fLabel(tk.freq)+"</div></div>"
+            +'<button class="ibtn" data-action="edit-task" data-cat="'+cat.id+'" data-task="'+tk.id+'">✏️</button>'
+            +'<button class="ibtn" data-action="del-task" data-cat="'+cat.id+'" data-task="'+tk.id+'">🗑️</button>'
+            +"</div>";
+        });
+        h+="</div>";
+      }
+      if(!cat.isHabits){
+        h+='<div style="padding:0 15px 14px">'
+          +'<button class="more-btn" data-action="new-task" data-cat="'+cat.id+'">+ Add Task</button>'
           +"</div>";
-      });
-      h+="</div>";
-    }
-    if(!cat.isHabits){
-      h+='<div style="padding:0 15px 14px">'
-        +'<button class="more-btn" data-action="new-task" data-cat="'+cat.id+'">+ Add Task</button>'
-        +"</div>";
+      }
     }
     h+="</div>";
   });
@@ -778,16 +820,21 @@ function modalCat(catId){
 function modalTask(catId,taskId){
   const cats=getCats()||[];
   const cat=cats.find(c=>c.id===catId)||{tasks:[]};
-  const task=taskId?cat.tasks.find(t=>t.id===taskId):{id:null,name:"",freq:{type:"daily"}};
+  const task=taskId?cat.tasks.find(t=>t.id===taskId):{id:null,name:"",freq:{type:"daily"},rollover:false};
   mCatId=catId;mTaskId=taskId||null;
   mFreq=Object.assign({},task.freq||{type:"daily"});
   let h='<div class="mo-title">'+(taskId?"Edit":"New")+" Task</div>"
     +'<div class="mo-lbl">Task Name</div>'
     +'<input class="mo-inp" id="mtask_name" placeholder="Task name" maxlength="60" value="'+esc(task.name||"")+'">'
-    +'<div class="mo-lbl">Frequency</div>'+freqUI("mtask")+
-    '<button class="mo-save" data-action="save-task">Save Task</button>'+
-    (taskId?'<button class="mo-del" data-action="del-task-modal">Delete Task</button>':"")+
-    '<button class="mo-cancel" data-action="close-modal">Cancel</button>';
+    +'<div class="mo-lbl">Frequency</div>'+freqUI("mtask")
+    +'<div style="display:flex;align-items:center;gap:12px;margin-top:18px;padding:14px;background:var(--ivory);border-radius:10px">'
+    +'<input type="checkbox" id="mtask_rollover" '+(task.rollover?"checked":"")+' style="width:20px;height:20px;cursor:pointer;accent-color:var(--walnut)">'
+    +'<div><div style="font-size:13px;font-weight:500;color:var(--mocha)">Roll over if not completed</div>'
+    +'<div style="font-size:11px;opacity:.5;margin-top:2px">Task will carry forward to the next day</div></div>'
+    +'</div>'
+    +'<button class="mo-save" data-action="save-task">Save Task</button>'
+    +(taskId?'<button class="mo-del" data-action="del-task-modal">Delete Task</button>':"")
+    +'<button class="mo-cancel" data-action="close-modal">Cancel</button>';
   openModal(h);
 }
 
@@ -929,10 +976,11 @@ document.addEventListener("click",function(e){
     const fd=document.getElementById("freq_date");if(fd)mFreq.date=parseInt(fd.value);
     const fm=document.getElementById("freq_month");if(fm)mFreq.month=parseInt(fm.value);
     const fy=document.getElementById("freq_year");if(fy)mFreq.year=parseInt(fy.value);
+    const rollover=!!(document.getElementById("mtask_rollover")||{}).checked;
     const cats=getCats()||[];const cat=cats.find(c=>c.id===mCatId);
     if(!cat) return;
-    if(mTaskId){const tk=cat.tasks.find(t=>t.id===mTaskId);if(tk){tk.name=name.trim();tk.freq=Object.assign({},mFreq);}}
-    else{cat.tasks.push({id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq)});}
+    if(mTaskId){const tk=cat.tasks.find(t=>t.id===mTaskId);if(tk){tk.name=name.trim();tk.freq=Object.assign({},mFreq);tk.rollover=rollover;}}
+    else{cat.tasks.push({id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover});}
     saveCats(cats);closeModal();renderMain();return;
   }
   if(a==="del-task"||a==="del-task-modal"){
