@@ -399,7 +399,15 @@ function catProg(cat,day,wk){
   (cat.tasks||[]).forEach(tk=>{
     const checked=isChk(day+":"+cat.id+":"+tk.id);
     const applies=fApplies(tk.freq,di)&&taskCreatedBeforeOrOnDay(tk,wk,day);
-    if(applies||checked){total++;if(checked)done++;}
+    if(!applies&&!checked) return;
+    // if rollover and unchecked on a past day, don't count it
+    if(applies&&!checked&&tk.rollover){
+      const todayDi=DAYS.indexOf(new Date().toLocaleDateString('en-US',{weekday:'long'}));
+      const isPast=(wk<wkKey(0))||(wk===wkKey(0)&&di<todayDi);
+      if(isPast) return;
+    }
+    total++;
+    if(checked) done++;
   });
   return{done,total};
 }
