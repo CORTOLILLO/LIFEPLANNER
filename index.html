@@ -402,7 +402,7 @@ function catProg(cat,day,wk){
     if(!applies&&!checked) return;
     // if rollover and unchecked on a past day, don't count it
     if(applies&&!checked&&tk.rollover){
-      const todayDi=DAYS.indexOf(new Date().toLocaleDateString('en-US',{weekday:'long'}));
+      const todayDi=DAYS.indexOf(todayName());
       const isPast=(wk<wkKey(0))||(wk===wkKey(0)&&di<todayDi);
       if(isPast) return;
     }
