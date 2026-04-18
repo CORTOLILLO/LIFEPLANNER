@@ -398,7 +398,7 @@ function catProg(cat,day,wk){
   }
   (cat.tasks||[]).forEach(tk=>{
     const checked=isChk(day+":"+cat.id+":"+tk.id);
-    const applies=fApplies(tk.freq,di);
+    const applies=fApplies(tk.freq,di)&&taskCreatedBeforeOrOnDay(tk,wk,day);
     if(applies||checked){total++;if(checked)done++;}
   });
   return{done,total};
@@ -549,7 +549,7 @@ function buildDay(){
     h+='<div class="sec-body">';
     (cat.tasks||[]).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
-      const applies=fApplies(tk.freq,di);
+      const applies=fApplies(tk.freq,di)&&taskCreatedBeforeOrOnDay(tk,wk,day);
       // check rollover: show today if was assigned yesterday and not checked
       let rolledOver=false;
       if(!applies&&!chk&&tk.rollover){
@@ -838,6 +838,16 @@ function modalTask(catId,taskId){
   openModal(h);
 }
 
+function taskCreatedBeforeOrOnDay(tk, wk, day){
+  if(!tk.createdAt) return true;
+  const{sunday}=parseWk(wk);
+  const di=DAYS.indexOf(day);
+  const d=new Date(sunday);
+  d.setDate(sunday.getDate()+di);
+  const dateStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  return tk.createdAt<=dateStr;
+}
+
 function freqUI(pfx,isCat){
   const f=mFreq;
   const types=[["daily","Every Day"],["days","Specific Days"],["weekly","Weekly"],["monthly","Monthly"],["annually","Annually"],["once","One Time"]];
@@ -980,7 +990,7 @@ document.addEventListener("click",function(e){
     const cats=getCats()||[];const cat=cats.find(c=>c.id===mCatId);
     if(!cat) return;
     if(mTaskId){const tk=cat.tasks.find(t=>t.id===mTaskId);if(tk){tk.name=name.trim();tk.freq=Object.assign({},mFreq);tk.rollover=rollover;}}
-    else{cat.tasks.push({id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover});}
+    else{cat.tasks.push({id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover,createdAt:new Date().toISOString().split("T")[0]});}
     saveCats(cats);closeModal();renderMain();return;
   }
   if(a==="del-task"||a==="del-task-modal"){
