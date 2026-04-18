@@ -855,8 +855,18 @@ function modalTask(catId,taskId){
     +'<input type="checkbox" id="mtask_rollover" '+(task.rollover?"checked":"")+' style="width:20px;height:20px;cursor:pointer;accent-color:var(--walnut)">'
     +'<div><div style="font-size:13px;font-weight:500;color:var(--mocha)">Roll over if not completed</div>'
     +'<div style="font-size:11px;opacity:.5;margin-top:2px">Task will carry forward to the next day</div></div>'
-    +'</div>'
-    +'<button class="mo-save" data-action="save-task">Save Task</button>'
+    +'</div>';
+  if(taskId){
+    const otherCats=cats.filter(c=>c.id!==catId&&!c.isHabits);
+    if(otherCats.length>0){
+      h+='<div class="mo-lbl">Move to Category</div>'
+        +'<select class="mo-inp" id="mtask_move_cat">'
+        +'<option value="">— Keep in '+esc(cat.name)+'—</option>'
+        +otherCats.map(c=>'<option value="'+c.id+'">'+c.icon+' '+esc(c.name)+"</option>").join("")
+        +"</select>";
+    }
+  }
+  h+='<button class="mo-save" data-action="save-task">Save Task</button>'
     +(taskId?'<button class="mo-del" data-action="del-task-modal">Delete Task</button>':"")
     +'<button class="mo-cancel" data-action="close-modal">Cancel</button>';
   openModal(h);
@@ -1011,10 +1021,23 @@ document.addEventListener("click",function(e){
     const fm=document.getElementById("freq_month");if(fm)mFreq.month=parseInt(fm.value);
     const fy=document.getElementById("freq_year");if(fy)mFreq.year=parseInt(fy.value);
     const rollover=!!(document.getElementById("mtask_rollover")||{}).checked;
+    const moveToCat=(document.getElementById("mtask_move_cat")||{}).value||"";
     const cats=getCats()||[];const cat=cats.find(c=>c.id===mCatId);
     if(!cat) return;
-    if(mTaskId){const tk=cat.tasks.find(t=>t.id===mTaskId);if(tk){tk.name=name.trim();tk.freq=Object.assign({},mFreq);tk.rollover=rollover;}}
-    else{cat.tasks.push({id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover,createdAt:new Date().toISOString().split("T")[0]});}
+    if(mTaskId){
+      const tk=cat.tasks.find(t=>t.id===mTaskId);
+      if(tk){
+        tk.name=name.trim();tk.freq=Object.assign({},mFreq);tk.rollover=rollover;
+        if(moveToCat){
+          // move task to new category
+          cat.tasks=cat.tasks.filter(t=>t.id!==mTaskId);
+          const newCat=cats.find(c=>c.id===moveToCat);
+          if(newCat) newCat.tasks.push(tk);
+        }
+      }
+    } else {
+      cat.tasks.push({id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover,createdAt:new Date().toISOString().split("T")[0]});
+    }
     saveCats(cats);closeModal();renderMain();return;
   }
   if(a==="del-task"||a==="del-task-modal"){
