@@ -880,12 +880,15 @@ function hasRolledInto(tk, cat, targetDi, targetWkOff){
     let checkWkOff=targetWkOff;
     while(checkDi<0){checkDi+=7;checkWkOff--;}
     const checkDay=DAYS[checkDi];
-    const checkWk=wkKey(checkWkOff);
+    // build week key directly to avoid wkOff global variable interference
+    const n=new Date();
+    const sun=new Date(n.getFullYear(),n.getMonth(),n.getDate()-n.getDay()+checkWkOff*7);
+    const checkWk=sun.getFullYear()+"-"+String(sun.getMonth()+1).padStart(2,"0")+"-"+String(sun.getDate()).padStart(2,"0");
     const checkCh=_checks[checkWk]||{};
     const wasChecked=!!(checkCh[checkDay+":"+cat.id+":"+tk.id]);
-    if(wasChecked) return false; // was completed on a previous day, stop rolling
+    if(wasChecked) return false; // was completed, stop rolling
     const wasAssigned=fApplies(tk.freq,checkDi)&&taskCreatedBeforeOrOnDay(tk,checkWk,checkDay);
-    if(wasAssigned) return true; // found the origin day and it wasn't checked
+    if(wasAssigned) return true; // found origin day, wasn't checked
   }
   return false;
 }
