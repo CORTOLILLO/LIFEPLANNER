@@ -407,14 +407,9 @@ function catProg(cat,day,wk){
     }
     // check if a rollover task has rolled INTO this day
     if(!applies&&!checked&&tk.rollover){
-      const prevDi=(di+6)%7;
-      const prevDay=DAYS[prevDi];
-      const prevWk=wkKey(di===0?wkOff-1:wkOff);
-      const prevCh=_checks[prevWk]||{};
-      const wasAssignedYesterday=fApplies(tk.freq,prevDi)&&taskCreatedBeforeOrOnDay(tk,prevWk,prevDay);
-      const wasCheckedYesterday=!!(prevCh[prevDay+":"+cat.id+":"+tk.id]);
-      if(wasAssignedYesterday&&!wasCheckedYesterday){
-        total++;// count it as a task for today
+      const off=Object.keys(_checks).indexOf(wk)-Object.keys(_checks).indexOf(wkKey(0));
+      if(hasRolledInto(tk,cat,di,wkOff)){
+        total++;
         return;
       }
       return;
@@ -574,32 +569,23 @@ function buildDay(){
       const applies=fApplies(tk.freq,di)&&taskCreatedBeforeOrOnDay(tk,wk,day);
 
       if(applies){
-        // task naturally belongs here
         if(tk.rollover&&!chk){
-          // rollover + unchecked: check if this is a past day
           const todayDi=DAYS.indexOf(todayName());
           const isPast=(wkOff<0)||(wkOff===0&&di<todayDi);
-          if(isPast) return; // hide from past — it rolled forward
+          if(isPast) return;
         }
         h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
         return;
       }
 
-      // task doesn't naturally belong here — check if it rolled over FROM yesterday
+      // check if rolled into this day
       if(tk.rollover&&!chk){
-        const prevDi=(di+6)%7;
-        const prevDay=DAYS[prevDi];
-        const prevWk=wkKey(di===0?wkOff-1:wkOff);
-        const prevCh=_checks[prevWk]||{};
-        const wasAssignedYesterday=fApplies(tk.freq,prevDi)&&taskCreatedBeforeOrOnDay(tk,prevWk,prevDay);
-        const wasCheckedYesterday=!!(prevCh[prevDay+":"+cat.id+":"+tk.id]);
-        if(wasAssignedYesterday&&!wasCheckedYesterday){
+        if(hasRolledInto(tk,cat,di,wkOff)){
           h+=fixedRow(cat.id,tk.id,tk.name+" ↻",chk,p.ac);
           return;
         }
       }
 
-      // show if it was checked here (e.g. checked on a non-assigned day)
       if(chk) h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
     });
     if(!cat.tasks||cat.tasks.filter(tk=>{
@@ -884,6 +870,24 @@ function modalTask(catId,taskId){
     +(taskId?'<button class="mo-del" data-action="del-task-modal">Delete Task</button>':"")
     +'<button class="mo-cancel" data-action="close-modal">Cancel</button>';
   openModal(h);
+}
+
+// Check if a rollover task has rolled into this day (chaining back through all days)
+function hasRolledInto(tk, cat, targetDi, targetWkOff){
+  // walk backwards day by day from the day before target, up to 30 days
+  for(let i=1;i<=30;i++){
+    let checkDi=targetDi-i;
+    let checkWkOff=targetWkOff;
+    while(checkDi<0){checkDi+=7;checkWkOff--;}
+    const checkDay=DAYS[checkDi];
+    const checkWk=wkKey(checkWkOff);
+    const checkCh=_checks[checkWk]||{};
+    const wasChecked=!!(checkCh[checkDay+":"+cat.id+":"+tk.id]);
+    if(wasChecked) return false; // was completed on a previous day, stop rolling
+    const wasAssigned=fApplies(tk.freq,checkDi)&&taskCreatedBeforeOrOnDay(tk,checkWk,checkDay);
+    if(wasAssigned) return true; // found the origin day and it wasn't checked
+  }
+  return false;
 }
 
 function taskCreatedBeforeOrOnDay(tk, wk, day){
