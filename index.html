@@ -580,23 +580,23 @@ function buildDay(){
           const thisDayStr=thisDayDate.getFullYear()+"-"+String(thisDayDate.getMonth()+1).padStart(2,"0")+"-"+String(thisDayDate.getDate()).padStart(2,"0");
           if(thisDayStr===activeDate){
             const isOriginalDay=applies;
-            h+=fixedRow(cat.id,tk.id,tk.name+(isOriginalDay?"":" ↻"),chk,p.ac);
+            h+=fixedRow(cat.id,tk.id,tk.name+(isOriginalDay?"":" ↻"),chk,p.ac,tk.url);
           } else if(chk){
-            h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
+            h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url);
           }
         } else if(chk){
           // completed - show on day it was checked
-          h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
+          h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url);
         }
         return;
       }
 
       if(applies){
-        h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
+        h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url);
         return;
       }
 
-      if(chk) h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
+      if(chk) h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url);
     });
     if(!cat.tasks||cat.tasks.filter(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
@@ -618,10 +618,12 @@ function secHdr(cat,done,total,isO){
     +'<span class="chev">&#x203A;</span></button>';
 }
 
-function fixedRow(catId,tkId,name,chk,ac){
+function fixedRow(catId,tkId,name,chk,ac,url){
   return '<div class="crow">'
     +'<button class="cbtn'+(chk?" chk":" hv")+'" style="'+(chk?"background:"+ac+";border-color:"+ac:"border-color:"+ac)+'" data-action="check" data-cat="'+catId+'" data-tk="'+tkId+'">'+(chk?"&#x2713;":"")+"</button>"
-    +'<div class="clabel'+(chk?" done":"")+'">'+esc(name)+"</div></div>";
+    +'<div class="clabel'+(chk?" done":"")+'">'+esc(name)+"</div>"
+    +(url?'<a href="'+esc(url)+'" target="_blank" rel="noopener" style="font-size:16px;text-decoration:none;opacity:.5;flex-shrink:0" onclick="event.stopPropagation()">🔗</a>':"")
+    +"</div>";
 }
 
 function wiRow(catId,tk,val,chk,ac,_unused,isHabit,ph){
@@ -787,7 +789,7 @@ function buildSetup(){
         h+='<div class="s-tasks">';
         sortedTasks.forEach(tk=>{
           h+='<div class="s-task">'
-            +'<div style="flex:1"><div class="s-task-name">'+esc(tk.name)+(tk.rollover?' <span style="font-size:10px;opacity:.5">↻</span>':"")+"</div>"
+            +'<div style="flex:1"><div class="s-task-name">'+esc(tk.name)+(tk.rollover?' <span style="font-size:10px;opacity:.5">↻</span>':"")+(tk.url?' <span style="font-size:12px;opacity:.5">🔗</span>':"")+"</div>"
             +'<div class="s-task-freq">'+fLabel(tk.freq)+"</div></div>"
             +'<button class="ibtn" data-action="edit-task" data-cat="'+cat.id+'" data-task="'+tk.id+'">✏️</button>'
             +'<button class="ibtn" data-action="del-task" data-cat="'+cat.id+'" data-task="'+tk.id+'">🗑️</button>'
@@ -854,12 +856,14 @@ function modalCat(catId){
 function modalTask(catId,taskId){
   const cats=getCats()||[];
   const cat=cats.find(c=>c.id===catId)||{tasks:[]};
-  const task=taskId?cat.tasks.find(t=>t.id===taskId):{id:null,name:"",freq:{type:"daily"},rollover:false};
+  const task=taskId?cat.tasks.find(t=>t.id===taskId):{id:null,name:"",freq:{type:"daily"},rollover:false,url:""};
   mCatId=catId;mTaskId=taskId||null;
   mFreq=Object.assign({},task.freq||{type:"daily"});
   let h='<div class="mo-title">'+(taskId?"Edit":"New")+" Task</div>"
     +'<div class="mo-lbl">Task Name</div>'
     +'<input class="mo-inp" id="mtask_name" placeholder="Task name" maxlength="60" value="'+esc(task.name||"")+'">'
+    +'<div class="mo-lbl">Link (optional)</div>'
+    +'<input class="mo-inp" id="mtask_url" type="url" placeholder="https://..." value="'+esc(task.url||"")+'">'
     +'<div class="mo-lbl">Frequency</div>'+freqUI("mtask")
     +'<div style="display:flex;align-items:center;gap:12px;margin-top:18px;padding:14px;background:var(--ivory);border-radius:10px">'
     +'<input type="checkbox" id="mtask_rollover" '+(task.rollover?"checked":"")+' style="width:20px;height:20px;cursor:pointer;accent-color:var(--walnut)">'
@@ -1107,13 +1111,14 @@ document.addEventListener("click",function(e){
     const fm=document.getElementById("freq_month");if(fm)mFreq.month=parseInt(fm.value);
     const fy=document.getElementById("freq_year");if(fy)mFreq.year=parseInt(fy.value);
     const rollover=!!(document.getElementById("mtask_rollover")||{}).checked;
+    const url=((document.getElementById("mtask_url")||{}).value||"").trim();
     const moveToCat=(document.getElementById("mtask_move_cat")||{}).value||"";
     const cats=getCats()||[];const cat=cats.find(c=>c.id===mCatId);
     if(!cat) return;
     if(mTaskId){
       const tk=cat.tasks.find(t=>t.id===mTaskId);
       if(tk){
-        tk.name=name.trim();tk.freq=Object.assign({},mFreq);tk.rollover=rollover;
+        tk.name=name.trim();tk.freq=Object.assign({},mFreq);tk.rollover=rollover;tk.url=url;
         if(moveToCat){
           // move task to new category
           cat.tasks=cat.tasks.filter(t=>t.id!==mTaskId);
@@ -1122,7 +1127,7 @@ document.addEventListener("click",function(e){
         }
       }
     } else {
-      cat.tasks.push({id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover,createdAt:new Date().toISOString().split("T")[0]});
+      cat.tasks.push({id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover,url,createdAt:new Date().toISOString().split("T")[0]});
     }
     saveCats(cats);closeModal();renderMain();return;
   }
