@@ -402,18 +402,17 @@ function catProg(cat,day,wk){
   (cat.tasks||[]).forEach(tk=>{
     const checked=isChk(day+":"+cat.id+":"+tk.id);
     const applies=fApplies(tk.freq,di)&&taskCreatedBeforeOrOnDay(tk,wk,day);
-    // if rollover and unchecked on a past day, don't count it
-    if(applies&&!checked&&tk.rollover){
-      const todayDi=DAYS.indexOf(todayName());
-      const isPast=(wk<wkKey(0))||(wk===wkKey(0)&&di<todayDi);
-      if(isPast) return;
-    }
-    // check if a rollover task has rolled INTO this day
-    if(!applies&&!checked&&tk.rollover){
-      const off=Object.keys(_checks).indexOf(wk)-Object.keys(_checks).indexOf(wkKey(0));
-      if(hasRolledInto(tk,cat,di,wkOff)){
-        total++;
-        return;
+    if(tk.rollover){
+      const activeDate=getActiveRolloverDate(tk,cat);
+      if(activeDate){
+        // build this day's date string
+        const n=new Date();
+        const sun=new Date(n.getFullYear(),n.getMonth(),n.getDate()-n.getDay()+wkOff*7);
+        const thisDayDate=new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()+di);
+        const thisDayStr=thisDayDate.getFullYear()+"-"+String(thisDayDate.getMonth()+1).padStart(2,"0")+"-"+String(thisDayDate.getDate()).padStart(2,"0");
+        if(thisDayStr===activeDate){total++;if(checked)done++;}
+      } else if(checked){
+        total++;done++;
       }
       return;
     }
@@ -568,25 +567,33 @@ function buildDay(){
     h+=secHdr(cat,prog.done,prog.total,isO);
     h+='<div class="sec-body">';
     (cat.tasks||[]).forEach(tk=>{
+      const now=new Date();
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const applies=fApplies(tk.freq,di)&&taskCreatedBeforeOrOnDay(tk,wk,day);
 
-      if(applies){
-        if(tk.rollover&&!chk){
-          const todayDi=DAYS.indexOf(todayName());
-          const isPast=(wkOff<0)||(wkOff===0&&di<todayDi);
-          if(isPast) return;
+      if(tk.rollover){
+        const activeDate=getActiveRolloverDate(tk,cat);
+        if(activeDate){
+          // build this day's date string
+          const sun=new Date(now.getFullYear(),now.getMonth(),now.getDate()-now.getDay()+wkOff*7);
+          const thisDayDate=new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()+di);
+          const thisDayStr=thisDayDate.getFullYear()+"-"+String(thisDayDate.getMonth()+1).padStart(2,"0")+"-"+String(thisDayDate.getDate()).padStart(2,"0");
+          if(thisDayStr===activeDate){
+            const isOriginalDay=applies;
+            h+=fixedRow(cat.id,tk.id,tk.name+(isOriginalDay?"":" ↻"),chk,p.ac);
+          } else if(chk){
+            h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
+          }
+        } else if(chk){
+          // completed - show on day it was checked
+          h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
         }
-        h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
         return;
       }
 
-      // check if rolled into this day
-      if(tk.rollover&&!chk){
-        if(hasRolledInto(tk,cat,di,wkOff)){
-          h+=fixedRow(cat.id,tk.id,tk.name+" ↻",chk,p.ac);
-          return;
-        }
+      if(applies){
+        h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
+        return;
       }
 
       if(chk) h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac);
@@ -922,6 +929,33 @@ function hasRolledInto(tk, cat, targetDi, targetWkOff){
     if(wasAssigned) return true;
   }
   return false;
+}
+
+// Returns the date string (YYYY-MM-DD) that a rollover task is currently active on
+// i.e. the first day from origin onwards where it hasn't been checked
+function getActiveRolloverDate(tk, cat){
+  let startDate;
+  if(tk.freq&&tk.freq.type==="once"&&tk.freq.date&&tk.freq.month!==undefined&&tk.freq.year){
+    startDate=new Date(tk.freq.year,tk.freq.month,tk.freq.date);
+  } else if(tk.createdAt){
+    const p=tk.createdAt.split("-");
+    startDate=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));
+  } else {
+    return null; // can't determine
+  }
+  // walk forward from start date up to 60 days
+  let d=new Date(startDate);
+  for(let i=0;i<60;i++){
+    const dayName=DAYS[d.getDay()];
+    const sun=new Date(d.getFullYear(),d.getMonth(),d.getDate()-d.getDay());
+    const wkStr=sun.getFullYear()+"-"+String(sun.getMonth()+1).padStart(2,"0")+"-"+String(sun.getDate()).padStart(2,"0");
+    const ch=_checks[wkStr]||{};
+    const checked=!!(ch[dayName+":"+cat.id+":"+tk.id]);
+    if(checked) return null; // completed, no longer active
+    const dateStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    return dateStr; // this is the active day
+  }
+  return null;
 }
 
 function taskCreatedBeforeOrOnDay(tk, wk, day){
