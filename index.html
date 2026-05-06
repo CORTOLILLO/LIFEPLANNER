@@ -877,21 +877,49 @@ function modalTask(catId,taskId){
 
 // Check if a rollover task has rolled into this day (chaining back through all days)
 function hasRolledInto(tk, cat, targetDi, targetWkOff){
-  // walk backwards day by day from the day before target, up to 30 days
+  // For once tasks, check if the exact date was missed
+  if(tk.freq&&tk.freq.type==="once"&&tk.freq.date&&tk.freq.month!==undefined&&tk.freq.year){
+    const originDate=new Date(tk.freq.year,tk.freq.month,tk.freq.date);
+    // build the target date
+    const n=new Date();
+    const targetSun=new Date(n.getFullYear(),n.getMonth(),n.getDate()-n.getDay()+targetWkOff*7);
+    const targetDate=new Date(targetSun.getFullYear(),targetSun.getMonth(),targetSun.getDate()+targetDi);
+    // only roll if target is after origin date
+    if(targetDate<=originDate) return false;
+    // check if it was completed on the origin date
+    const originDay=DAYS[originDate.getDay()];
+    const originSun=new Date(originDate.getFullYear(),originDate.getMonth(),originDate.getDate()-originDate.getDay());
+    const originWk=originSun.getFullYear()+"-"+String(originSun.getMonth()+1).padStart(2,"0")+"-"+String(originSun.getDate()).padStart(2,"0");
+    const originCh=_checks[originWk]||{};
+    const wasCheckedOnOrigin=!!(originCh[originDay+":"+cat.id+":"+tk.id]);
+    if(wasCheckedOnOrigin) return false;
+    // check if it was completed on any day between origin and target
+    let checkDate=new Date(originDate);
+    checkDate.setDate(checkDate.getDate()+1);
+    while(checkDate<targetDate){
+      const checkDay=DAYS[checkDate.getDay()];
+      const checkSun=new Date(checkDate.getFullYear(),checkDate.getMonth(),checkDate.getDate()-checkDate.getDay());
+      const checkWk=checkSun.getFullYear()+"-"+String(checkSun.getMonth()+1).padStart(2,"0")+"-"+String(checkSun.getDate()).padStart(2,"0");
+      const checkCh=_checks[checkWk]||{};
+      if(checkCh[checkDay+":"+cat.id+":"+tk.id]) return false;
+      checkDate.setDate(checkDate.getDate()+1);
+    }
+    return true;
+  }
+  // For all other frequencies, walk backwards day by day up to 30 days
   for(let i=1;i<=30;i++){
     let checkDi=targetDi-i;
     let checkWkOff=targetWkOff;
     while(checkDi<0){checkDi+=7;checkWkOff--;}
     const checkDay=DAYS[checkDi];
-    // build week key directly to avoid wkOff global variable interference
     const n=new Date();
     const sun=new Date(n.getFullYear(),n.getMonth(),n.getDate()-n.getDay()+checkWkOff*7);
     const checkWk=sun.getFullYear()+"-"+String(sun.getMonth()+1).padStart(2,"0")+"-"+String(sun.getDate()).padStart(2,"0");
     const checkCh=_checks[checkWk]||{};
     const wasChecked=!!(checkCh[checkDay+":"+cat.id+":"+tk.id]);
-    if(wasChecked) return false; // was completed, stop rolling
+    if(wasChecked) return false;
     const wasAssigned=fApplies(tk.freq,checkDi)&&taskCreatedBeforeOrOnDay(tk,checkWk,checkDay);
-    if(wasAssigned) return true; // found origin day, wasn't checked
+    if(wasAssigned) return true;
   }
   return false;
 }
