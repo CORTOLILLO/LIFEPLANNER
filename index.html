@@ -336,14 +336,17 @@ function fApplies(f,di){
   if(f.type==="weekly") return di===(f.day||0);
   if(f.type==="monthly"){
     const now=new Date();
-    const weekStart=new Date(now);
-    weekStart.setDate(now.getDate()-now.getDay()+wkOff*7);
+    const weekStart=new Date(now.getFullYear(),now.getMonth(),now.getDate()-now.getDay()+wkOff*7);
     weekStart.setHours(0,0,0,0);
     const weekEnd=new Date(weekStart);
     weekEnd.setDate(weekStart.getDate()+6);
     weekEnd.setHours(23,59,59,999);
-    const target=new Date(weekStart.getFullYear(),weekStart.getMonth(),f.date||1);
-    return target>=weekStart&&target<=weekEnd&&target.getDay()===di;
+    // check both current month and adjacent months in case date spans month boundary
+    for(let mOff=-1;mOff<=1;mOff++){
+      const d=new Date(weekStart.getFullYear(),weekStart.getMonth()+mOff,f.date||1);
+      if(d>=weekStart&&d<=weekEnd&&d.getDay()===di) return true;
+    }
+    return false;
   }
   if(f.type==="annually"){
     const now=new Date();
