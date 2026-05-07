@@ -949,30 +949,27 @@ function getActiveRolloverDate(tk, cat){
   }
   const today=new Date();
   today.setHours(0,0,0,0);
-  // walk forward from start date, find first unchecked day up to today
+  // walk forward from start date, find first unchecked day up to and including today
   let d=new Date(startDate);
   d.setHours(0,0,0,0);
   for(let i=0;i<60;i++){
+    if(d>today) break; // don't go into the future
     const dayName=DAYS[d.getDay()];
     const sun=new Date(d.getFullYear(),d.getMonth(),d.getDate()-d.getDay());
     const wkStr=sun.getFullYear()+"-"+String(sun.getMonth()+1).padStart(2,"0")+"-"+String(sun.getDate()).padStart(2,"0");
     const ch=_checks[wkStr]||{};
     const checked=!!(ch[dayName+":"+cat.id+":"+tk.id]);
-    if(checked) return null; // completed on this day, no longer active
-    // this day is unchecked — if it's today or in the past, this is the active day
-    if(d<=today){
-      const dateStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-      // keep walking if this is a past day and task wasn't originally assigned here
-      // for once tasks, the start date is the only origin
-      // for other tasks we need fApplies
-      const wasOriginallyAssigned=(tk.freq&&tk.freq.type==="once"&&i===0)||
-        (tk.freq&&tk.freq.type!=="once"&&fApplies(tk.freq,d.getDay()));
-      if(wasOriginallyAssigned||i>0){
-        // check if it was supposed to appear here (rollover) or was originally assigned
-        return dateStr;
-      }
+    if(checked) return null; // completed, done
+    // if today, return today as the active date
+    if(d.getTime()===today.getTime()){
+      return today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
     }
+    // past day, unchecked — keep rolling forward
     d.setDate(d.getDate()+1);
+  }
+  // if we walked all the way to today without finding a check, today is active
+  if(d.getTime()<=today.getTime()){
+    return today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
   }
   return null;
 }
