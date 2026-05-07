@@ -1313,7 +1313,17 @@ function showDebug(){
   const ch=_checks[wk]||{};
   const keys=Object.keys(ch);
   const trueKeys=keys.filter(k=>ch[k]);
-  alert("Week: "+wk+"\n\nChecked keys ("+trueKeys.length+"):\n"+trueKeys.slice(0,10).join("\n")+(trueKeys.length>10?"\n...":""));
+  const cats=getCats()||[];
+  let rolloverInfo="";
+  cats.forEach(cat=>{
+    (cat.tasks||[]).forEach(tk=>{
+      if(tk.rollover){
+        const active=getActiveRolloverDate(tk,cat);
+        rolloverInfo+="\n"+tk.name+": activeDate="+active+" freq="+tk.freq.type+(tk.freq.type==="once"?" "+tk.freq.year+"-"+(tk.freq.month+1)+"-"+tk.freq.date:"");
+      }
+    });
+  });
+  alert("Week: "+wk+"\n\nChecked keys ("+trueKeys.length+"):\n"+trueKeys.slice(0,5).join("\n")+"\n\nROLLOVER TASKS:"+rolloverInfo);
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
