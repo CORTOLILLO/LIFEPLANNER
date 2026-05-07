@@ -573,11 +573,13 @@ function buildDay(){
 
       if(tk.rollover){
         const activeDate=getActiveRolloverDate(tk,cat);
+        console.log('ROLLOVER:',tk.name,'cat.id:',cat.id,'tk.id:',tk.id,'activeDate:',activeDate);
         if(activeDate){
           // build this day's date string
           const sun=new Date(now.getFullYear(),now.getMonth(),now.getDate()-now.getDay()+wkOff*7);
           const thisDayDate=new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()+di);
           const thisDayStr=thisDayDate.getFullYear()+"-"+String(thisDayDate.getMonth()+1).padStart(2,"0")+"-"+String(thisDayDate.getDate()).padStart(2,"0");
+          console.log('thisDayStr:',thisDayStr,'activeDate:',activeDate,'match:',thisDayStr===activeDate);
           if(thisDayStr===activeDate){
             const isOriginalDay=applies;
             h+=fixedRow(cat.id,tk.id,tk.name+(isOriginalDay?"":" ↻"),chk,p.ac,tk.url);
