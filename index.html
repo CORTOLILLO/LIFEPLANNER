@@ -405,10 +405,9 @@ function catProg(cat,day,wk){
     if(tk.rollover){
       const activeDate=getActiveRolloverDate(tk,cat);
       if(activeDate){
-        // build this day's date string
-        const n=new Date();
-        const sun=new Date(n.getFullYear(),n.getMonth(),n.getDate()-n.getDay()+wkOff*7);
-        const thisDayDate=new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()+di);
+        const wkParts=wk.split("-");
+        const wkSun=new Date(parseInt(wkParts[0]),parseInt(wkParts[1])-1,parseInt(wkParts[2]));
+        const thisDayDate=new Date(wkSun.getFullYear(),wkSun.getMonth(),wkSun.getDate()+di);
         const thisDayStr=thisDayDate.getFullYear()+"-"+String(thisDayDate.getMonth()+1).padStart(2,"0")+"-"+String(thisDayDate.getDate()).padStart(2,"0");
         if(thisDayStr===activeDate){total++;if(checked)done++;}
       } else if(checked){
@@ -573,13 +572,12 @@ function buildDay(){
 
       if(tk.rollover){
         const activeDate=getActiveRolloverDate(tk,cat);
-        console.log('ROLLOVER:',tk.name,'cat.id:',cat.id,'tk.id:',tk.id,'activeDate:',activeDate);
         if(activeDate){
-          // build this day's date string
-          const sun=new Date(now.getFullYear(),now.getMonth(),now.getDate()-now.getDay()+wkOff*7);
-          const thisDayDate=new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()+di);
+          // build this day's date string directly from the week start + day index
+          const wkParts=wk.split("-");
+          const wkSun=new Date(parseInt(wkParts[0]),parseInt(wkParts[1])-1,parseInt(wkParts[2]));
+          const thisDayDate=new Date(wkSun.getFullYear(),wkSun.getMonth(),wkSun.getDate()+di);
           const thisDayStr=thisDayDate.getFullYear()+"-"+String(thisDayDate.getMonth()+1).padStart(2,"0")+"-"+String(thisDayDate.getDate()).padStart(2,"0");
-          console.log('thisDayStr:',thisDayStr,'activeDate:',activeDate,'match:',thisDayStr===activeDate);
           if(thisDayStr===activeDate){
             const isOriginalDay=applies;
             h+=fixedRow(cat.id,tk.id,tk.name+(isOriginalDay?"":" ↻"),chk,p.ac,tk.url);
@@ -587,7 +585,6 @@ function buildDay(){
             h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url);
           }
         } else if(chk){
-          // completed - show on day it was checked
           h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url);
         }
         return;
@@ -1313,17 +1310,7 @@ function showDebug(){
   const ch=_checks[wk]||{};
   const keys=Object.keys(ch);
   const trueKeys=keys.filter(k=>ch[k]);
-  const cats=getCats()||[];
-  let rolloverInfo="";
-  cats.forEach(cat=>{
-    (cat.tasks||[]).forEach(tk=>{
-      if(tk.rollover){
-        const active=getActiveRolloverDate(tk,cat);
-        rolloverInfo+="\n"+tk.name+": activeDate="+active+" freq="+tk.freq.type+(tk.freq.type==="once"?" "+tk.freq.year+"-"+(tk.freq.month+1)+"-"+tk.freq.date:"");
-      }
-    });
-  });
-  alert("Week: "+wk+"\n\nChecked keys ("+trueKeys.length+"):\n"+trueKeys.slice(0,5).join("\n")+"\n\nROLLOVER TASKS:"+rolloverInfo);
+  alert("Week: "+wk+"\n\nChecked keys ("+trueKeys.length+"):\n"+trueKeys.slice(0,10).join("\n")+(trueKeys.length>10?"\n...":""));
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
