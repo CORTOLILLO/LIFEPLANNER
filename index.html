@@ -572,12 +572,14 @@ function buildDay(){
 
       if(tk.rollover){
         const activeDate=getActiveRolloverDate(tk,cat);
+        const wkParts=wk.split("-");
+        const wkSun=new Date(parseInt(wkParts[0]),parseInt(wkParts[1])-1,parseInt(wkParts[2]));
+        const thisDayDate=new Date(wkSun.getFullYear(),wkSun.getMonth(),wkSun.getDate()+di);
+        const thisDayStr=thisDayDate.getFullYear()+"-"+String(thisDayDate.getMonth()+1).padStart(2,"0")+"-"+String(thisDayDate.getDate()).padStart(2,"0");
+        if(tk.name.includes("AFC")||tk.name.includes("Call")){
+          alert("DEBUG: "+tk.name+"\nwk="+wk+"\ndi="+di+"\nthisDayStr="+thisDayStr+"\nactiveDate="+activeDate+"\nmatch="+(thisDayStr===activeDate));
+        }
         if(activeDate){
-          // build this day's date string directly from the week start + day index
-          const wkParts=wk.split("-");
-          const wkSun=new Date(parseInt(wkParts[0]),parseInt(wkParts[1])-1,parseInt(wkParts[2]));
-          const thisDayDate=new Date(wkSun.getFullYear(),wkSun.getMonth(),wkSun.getDate()+di);
-          const thisDayStr=thisDayDate.getFullYear()+"-"+String(thisDayDate.getMonth()+1).padStart(2,"0")+"-"+String(thisDayDate.getDate()).padStart(2,"0");
           if(thisDayStr===activeDate){
             const isOriginalDay=applies;
             h+=fixedRow(cat.id,tk.id,tk.name+(isOriginalDay?"":" ↻"),chk,p.ac,tk.url);
