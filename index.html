@@ -576,9 +576,6 @@ function buildDay(){
         const wkSun=new Date(parseInt(wkParts[0]),parseInt(wkParts[1])-1,parseInt(wkParts[2]));
         const thisDayDate=new Date(wkSun.getFullYear(),wkSun.getMonth(),wkSun.getDate()+di);
         const thisDayStr=thisDayDate.getFullYear()+"-"+String(thisDayDate.getMonth()+1).padStart(2,"0")+"-"+String(thisDayDate.getDate()).padStart(2,"0");
-        if(tk.name.includes("AFC")||tk.name.includes("Call")){
-          alert("DEBUG: "+tk.name+"\nwk="+wk+"\ndi="+di+"\nthisDayStr="+thisDayStr+"\nactiveDate="+activeDate+"\nmatch="+(thisDayStr===activeDate));
-        }
         if(activeDate){
           if(thisDayStr===activeDate){
             const isOriginalDay=applies;
@@ -950,27 +947,27 @@ function getActiveRolloverDate(tk, cat){
   }
   const today=new Date();
   today.setHours(0,0,0,0);
-  // walk forward from start date, find first unchecked day up to and including today
+  startDate.setHours(0,0,0,0);
+
+  // if start date is in the future, just return it as-is (hasn't arrived yet)
+  if(startDate>today){
+    return startDate.getFullYear()+"-"+String(startDate.getMonth()+1).padStart(2,"0")+"-"+String(startDate.getDate()).padStart(2,"0");
+  }
+
+  // start date is today or past — walk forward to find first unchecked day up to today
   let d=new Date(startDate);
-  d.setHours(0,0,0,0);
   for(let i=0;i<60;i++){
-    if(d>today) break; // don't go into the future
     const dayName=DAYS[d.getDay()];
     const sun=new Date(d.getFullYear(),d.getMonth(),d.getDate()-d.getDay());
     const wkStr=sun.getFullYear()+"-"+String(sun.getMonth()+1).padStart(2,"0")+"-"+String(sun.getDate()).padStart(2,"0");
     const ch=_checks[wkStr]||{};
     const checked=!!(ch[dayName+":"+cat.id+":"+tk.id]);
-    if(checked) return null; // completed, done
-    // if today, return today as the active date
-    if(d.getTime()===today.getTime()){
-      return today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
-    }
-    // past day, unchecked — keep rolling forward
-    d.setDate(d.getDate()+1);
-  }
-  // if we walked all the way to today without finding a check, today is active
-  if(d.getTime()<=today.getTime()){
-    return today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
+    if(checked) return null; // completed
+    // unchecked — if today or past, this is the active day (keep rolling to today)
+    const dateStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    if(d.getTime()===today.getTime()) return dateStr; // reached today unchecked
+    d.setDate(d.getDate()+1); // roll forward
+    if(d>today) return today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
   }
   return null;
 }
