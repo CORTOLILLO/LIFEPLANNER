@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -459,14 +458,14 @@ function renderHeader(){
   });
 
   const vt=document.getElementById("view-tabs");vt.innerHTML="";
-  [["day","📅 Day"],["week","📊 Week"],["dashboard","📈 Dash"]].forEach(([v,l])=>{
+  [["day","📅 Day"],["schedule","🗓 Schedule"],["dashboard","📈 Dash"]].forEach(([v,l])=>{
     const b=document.createElement("button");
     b.className="vtab"+(view===v?" active":"");b.textContent=l;b.dataset.action="view-"+v;
     vt.appendChild(b);
   });
 
   const dt=document.getElementById("day-tabs");
-  dt.style.display=view==="day"?"flex":"none";
+  dt.style.display=(view==="day"||view==="schedule")?"flex":"none";
   dt.innerHTML="";
   if(view==="day"){
     DAYS.forEach(d=>{
@@ -489,7 +488,7 @@ function renderMain(){
   const el=document.getElementById("main");
   if(mode==="setup") el.innerHTML=buildSetup();
   else if(view==="day") el.innerHTML=buildDay();
-  else if(view==="week") el.innerHTML=buildWeek();
+  else if(view==="schedule") el.innerHTML=buildSchedule();
   else el.innerHTML=buildDash();
   setTimeout(()=>{document.getElementById("main").style.paddingTop=document.getElementById("header").offsetHeight+"px"},0);
   syncInputs();
@@ -648,6 +647,103 @@ function syncInputs(){
     if(inp.value){inp.style.display="block";if(lbl)lbl.style.display="none";}
     else{inp.style.display="none";if(lbl)lbl.style.display="block";}
   });
+}
+
+// ── Schedule View ──────────────────────────────────────────────────────────────
+function fmt12(t){
+  if(!t) return "";
+  const[h,m]=t.split(":");
+  const hr=parseInt(h),mn=m||"00";
+  const ampm=hr>=12?"PM":"AM";
+  const h12=hr%12||12;
+  return h12+":"+mn+" "+ampm;
+}
+
+function buildSchedule(){
+  const day=activeDay,di=DAYS.indexOf(day),cats=getCats()||[];
+  const wk=wkKey(),ch=chks(),c=cu();
+  const chkVal=(key)=>!!(ch[key]||ch[wk+":"+key]);
+
+  // collect all tasks for this day
+  const scheduled=[],unscheduled=[];
+  cats.forEach(cat=>{
+    if(!catOn(cat,di)||cat.isHabits) return;
+    (cat.tasks||[]).forEach(tk=>{
+      const chk=chkVal(day+":"+cat.id+":"+tk.id);
+      const applies=fApplies(tk.freq,di)&&taskCreatedBeforeOrOnDay(tk,wk,day);
+      // handle rollover
+      let show=applies;
+      if(tk.rollover){
+        const activeDate=getActiveRolloverDate(tk,cat);
+        if(activeDate){
+          const wkParts=wk.split("-");
+          const wkSun=new Date(parseInt(wkParts[0]),parseInt(wkParts[1])-1,parseInt(wkParts[2]));
+          const thisDayDate=new Date(wkSun.getFullYear(),wkSun.getMonth(),wkSun.getDate()+di);
+          const thisDayStr=thisDayDate.getFullYear()+"-"+String(thisDayDate.getMonth()+1).padStart(2,"0")+"-"+String(thisDayDate.getDate()).padStart(2,"0");
+          show=thisDayStr===activeDate||chk;
+        } else {
+          show=chk;
+        }
+      }
+      if(!show&&!chk) return;
+      const p=PALETTE[cat.color||0];
+      const item={tk,cat,p,chk};
+      if(tk.startTime) scheduled.push(item);
+      else unscheduled.push(item);
+    });
+  });
+
+  // sort scheduled by start time
+  scheduled.sort((a,b)=>a.tk.startTime.localeCompare(b.tk.startTime));
+
+  let h='<div class="dv-top"><div><div class="dv-title">'+day+"</div>"
+    +'<div style="font-size:11px;opacity:.5;letter-spacing:.5px;margin-top:2px">Daily Schedule</div></div>'
+    +'<button class="exp-btn" data-action="export-week">&#x2B07; EXPORT</button></div>';
+
+  if(!scheduled.length&&!unscheduled.length){
+    h+='<div style="text-align:center;padding:60px 20px;opacity:.4">'
+      +'<div style="font-size:44px;margin-bottom:12px">🗓</div>'
+      +'<div style="font-size:15px;font-weight:600;margin-bottom:6px">No tasks scheduled</div>'
+      +'<div style="font-size:13px">Add times to your tasks in ⚙️</div></div>';
+    return h;
+  }
+
+  if(scheduled.length){
+    scheduled.forEach(({tk,cat,p,chk})=>{
+      const timeStr=fmt12(tk.startTime)+(tk.endTime?" – "+fmt12(tk.endTime):"");
+      h+='<div style="display:flex;gap:12px;margin:0 14px 10px;align-items:flex-start">'
+        +'<div style="text-align:right;min-width:72px;padding-top:14px">'
+        +'<div style="font-size:11px;font-weight:500;color:var(--walnut);letter-spacing:.3px">'+fmt12(tk.startTime)+"</div>"
+        +(tk.endTime?'<div style="font-size:10px;opacity:.4">'+fmt12(tk.endTime)+"</div>":"")
+        +"</div>"
+        +'<div style="flex:1;background:var(--white);border-radius:14px;border:1px solid '+p.lt+';border-left:3px solid '+p.ac+';padding:12px 14px">'
+        +'<div style="display:flex;align-items:center;gap:10px">'
+        +'<button class="cbtn'+(chk?" chk":" hv")+'" style="'+(chk?"background:"+p.ac+";border-color:"+p.ac:"border-color:"+p.ac)+';flex-shrink:0" data-action="check" data-cat="'+cat.id+'" data-tk="'+tk.id+'">'+(chk?"&#x2713;":"")+"</button>"
+        +'<div style="flex:1">'
+        +'<div style="font-size:14px;font-weight:400;color:var(--ink)'+(chk?";text-decoration:line-through;color:var(--stone)":"")+'">'+(tk.url?'<a href="'+esc(tk.url)+'" target="_blank" style="color:inherit;text-decoration:none">'+esc(tk.name)+' 🔗</a>':esc(tk.name))+"</div>"
+        +'<div style="font-size:10px;opacity:.4;margin-top:2px;letter-spacing:.5px">'+cat.icon+" "+cat.name+"</div>"
+        +"</div></div></div></div>";
+    });
+  }
+
+  if(unscheduled.length){
+    h+='<div style="display:flex;align-items:center;gap:10px;margin:20px 14px 12px;opacity:.35">'
+      +'<div style="flex:1;height:1px;background:var(--greige)"></div>'
+      +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--walnut);white-space:nowrap">As Time Allows</div>'
+      +'<div style="flex:1;height:1px;background:var(--greige)"></div>'
+      +'</div>';
+    unscheduled.forEach(({tk,cat,p,chk})=>{
+      h+='<div style="margin:0 14px 10px;background:var(--white);border-radius:14px;border:1px solid '+p.lt+';padding:12px 14px">'
+        +'<div style="display:flex;align-items:center;gap:10px">'
+        +'<button class="cbtn'+(chk?" chk":" hv")+'" style="'+(chk?"background:"+p.ac+";border-color:"+p.ac:"border-color:"+p.ac)+'" data-action="check" data-cat="'+cat.id+'" data-tk="'+tk.id+'">'+(chk?"&#x2713;":"")+"</button>"
+        +'<div style="flex:1">'
+        +'<div style="font-size:14px;font-weight:400;color:var(--ink)'+(chk?";text-decoration:line-through;color:var(--stone)":"")+'">'+(tk.url?'<a href="'+esc(tk.url)+'" target="_blank" style="color:inherit;text-decoration:none">'+esc(tk.name)+' 🔗</a>':esc(tk.name))+"</div>"
+        +'<div style="font-size:10px;opacity:.4;margin-top:2px;letter-spacing:.5px">'+cat.icon+" "+cat.name+"</div>"
+        +"</div></div></div>";
+    });
+  }
+
+  return h+"<div style='height:40px'></div>";
 }
 
 // ── Week View ──────────────────────────────────────────────────────────────────
@@ -862,6 +958,13 @@ function modalTask(catId,taskId){
     +'<input class="mo-inp" id="mtask_name" placeholder="Task name" maxlength="60" value="'+esc(task.name||"")+'">'
     +'<div class="mo-lbl">Link (optional)</div>'
     +'<input class="mo-inp" id="mtask_url" type="url" placeholder="https://..." value="'+esc(task.url||"")+'">'
+    +'<div class="mo-lbl">Scheduled Time (optional)</div>'
+    +'<div class="mrow">'
+    +'<div><div style="font-size:9px;letter-spacing:1.5px;opacity:.5;margin-bottom:6px">START</div>'
+    +'<input class="mo-inp sm" id="mtask_start" type="time" value="'+esc(task.startTime||"")+'"></div>'
+    +'<div><div style="font-size:9px;letter-spacing:1.5px;opacity:.5;margin-bottom:6px">END</div>'
+    +'<input class="mo-inp sm" id="mtask_end" type="time" value="'+esc(task.endTime||"")+'"></div>'
+    +'</div>'
     +'<div class="mo-lbl">Frequency</div>'+freqUI("mtask")
     +'<div style="display:flex;align-items:center;gap:12px;margin-top:18px;padding:14px;background:var(--ivory);border-radius:10px">'
     +'<input type="checkbox" id="mtask_rollover" '+(task.rollover?"checked":"")+' style="width:20px;height:20px;cursor:pointer;accent-color:var(--walnut)">'
@@ -1122,13 +1225,15 @@ document.addEventListener("click",function(e){
     const fy=document.getElementById("freq_year");if(fy)mFreq.year=parseInt(fy.value);
     const rollover=!!(document.getElementById("mtask_rollover")||{}).checked;
     const url=((document.getElementById("mtask_url")||{}).value||"").trim();
+    const startTime=((document.getElementById("mtask_start")||{}).value||"").trim();
+    const endTime=((document.getElementById("mtask_end")||{}).value||"").trim();
     const moveToCat=(document.getElementById("mtask_move_cat")||{}).value||"";
     const cats=getCats()||[];const cat=cats.find(c=>c.id===mCatId);
     if(!cat) return;
     if(mTaskId){
       const tk=cat.tasks.find(t=>t.id===mTaskId);
       if(tk){
-        tk.name=name.trim();tk.freq=Object.assign({},mFreq);tk.rollover=rollover;tk.url=url;
+        tk.name=name.trim();tk.freq=Object.assign({},mFreq);tk.rollover=rollover;tk.url=url;tk.startTime=startTime;tk.endTime=endTime;
         if(moveToCat){
           // move task to new category
           cat.tasks=cat.tasks.filter(t=>t.id!==mTaskId);
@@ -1137,7 +1242,7 @@ document.addEventListener("click",function(e){
         }
       }
     } else {
-      cat.tasks.push({id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover,url,createdAt:new Date().toISOString().split("T")[0]});
+      cat.tasks.push({id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover,url,startTime,endTime,createdAt:new Date().toISOString().split("T")[0]});
     }
     saveCats(cats);closeModal();renderMain();return;
   }
@@ -1343,6 +1448,5 @@ window.addEventListener("resize",()=>{
   document.getElementById("main").style.paddingTop=document.getElementById("header").offsetHeight+"px";
 });
 </script>
-
 </body>
 </html>
