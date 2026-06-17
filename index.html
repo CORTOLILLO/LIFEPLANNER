@@ -567,6 +567,8 @@ function buildDay(){
     (cat.tasks||[]).forEach(tk=>{
       const now=new Date();
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
+      const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
+      if(skipped&&!chk) return; // hidden for today only
       const applies=fApplies(tk.freq,di)&&taskCreatedBeforeOrOnDay(tk,wk,day);
 
       if(tk.rollover){
@@ -616,11 +618,22 @@ function secHdr(cat,done,total,isO){
 }
 
 function fixedRow(catId,tkId,name,chk,ac,url){
-  return '<div class="crow">'
+  const id="row_"+catId+"_"+tkId;
+  return '<div class="task-row" id="'+id+'" data-cat="'+catId+'" data-task="'+tkId+'" style="margin-bottom:10px;perspective:600px">'
+    // front face - normal task
+    +'<div class="task-front crow" style="backface-visibility:hidden;transition:transform .3s;transform-style:preserve-3d">'
     +'<button class="cbtn'+(chk?" chk":" hv")+'" style="'+(chk?"background:"+ac+";border-color:"+ac:"border-color:"+ac)+'" data-action="check" data-cat="'+catId+'" data-tk="'+tkId+'">'+(chk?"&#x2713;":"")+"</button>"
     +'<div class="clabel'+(chk?" done":"")+'">'+esc(name)+"</div>"
     +(url?'<a href="'+esc(url)+'" target="_blank" rel="noopener" style="font-size:16px;text-decoration:none;opacity:.5;flex-shrink:0" onclick="event.stopPropagation()">🔗</a>':"")
-    +"</div>";
+    +'</div>'
+    // back face - options
+    +'<div class="task-back" style="display:none;gap:6px;padding:4px 0">'
+    +'<button data-action="del-task-today" data-cat="'+catId+'" data-task="'+tkId+'" style="flex:1;padding:10px 6px;border-radius:10px;border:none;background:#fdf0ee;color:#b85c52;font-size:10px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.4">🚫<br>Skip Today</button>'
+    +'<button data-action="del-task-forward" data-cat="'+catId+'" data-task="'+tkId+'" style="flex:1;padding:10px 6px;border-radius:10px;border:none;background:#fdf0ee;color:#b85c52;font-size:10px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.4">⏹<br>Stop Here</button>'
+    +'<button data-action="del-task-all" data-cat="'+catId+'" data-task="'+tkId+'" style="flex:1;padding:10px 6px;border-radius:10px;border:none;background:#fdf0ee;color:#b85c52;font-size:10px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.4">🗑️<br>Delete All</button>'
+    +'<button data-action="task-flip-cancel" data-row="'+id+'" style="flex:1;padding:10px 6px;border-radius:10px;border:1.5px solid var(--greige);background:transparent;color:var(--stone);font-size:10px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.4">✕<br>Cancel</button>'
+    +'</div>'
+    +'</div>';
 }
 
 function wiRow(catId,tk,val,chk,ac,_unused,isHabit,ph){
@@ -1077,6 +1090,15 @@ function getActiveRolloverDate(tk, cat){
 
 function taskCreatedBeforeOrOnDay(tk, wk, day){
   if(!tk.createdAt) return true;
+  // check deletedAfter — don't show on or after deletion date
+  if(tk.deletedAfter){
+    const{sunday}=parseWk(wk);
+    const di=DAYS.indexOf(day);
+    const d=new Date(sunday);
+    d.setDate(sunday.getDate()+di);
+    const dateStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    if(dateStr>=tk.deletedAfter) return false;
+  }
   const{sunday}=parseWk(wk);
   const di=DAYS.indexOf(day);
   const d=new Date(sunday);
@@ -1125,6 +1147,42 @@ function refreshFreqExtra(){
     const el=document.getElementById(pfx+"_fextra");
     if(el) el.innerHTML=freqExtra(mFreq);
   });
+}
+
+// ── Long press to flip task row ────────────────────────────────────────────────
+let longPressTimer=null;
+
+document.addEventListener("touchstart",function(e){
+  const row=e.target.closest(".task-row");
+  if(!row) return;
+  if(e.target.closest(".cbtn")||e.target.closest("a")||e.target.closest(".task-back")) return;
+  longPressTimer=setTimeout(()=>{
+    flipRow(row);
+  },600);
+},{ passive:true });
+
+document.addEventListener("touchend",function(){
+  if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null;}
+},{ passive:true });
+
+document.addEventListener("touchmove",function(){
+  if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null;}
+},{ passive:true });
+
+function flipRow(row){
+  const front=row.querySelector(".task-front");
+  const back=row.querySelector(".task-back");
+  if(!front||!back) return;
+  front.style.display="none";
+  back.style.display="flex";
+}
+
+function unflipRow(row){
+  const front=row.querySelector(".task-front");
+  const back=row.querySelector(".task-back");
+  if(!front||!back) return;
+  back.style.display="none";
+  front.style.display="flex";
 }
 
 // ── Event delegation ───────────────────────────────────────────────────────────
@@ -1249,9 +1307,59 @@ document.addEventListener("click",function(e){
   if(a==="del-task"||a==="del-task-modal"){
     const cid=a==="del-task-modal"?mCatId:btn.dataset.cat;
     const tid=a==="del-task-modal"?mTaskId:btn.dataset.task;
-    if(!confirm("Remove this task?")) return;
-    const cats=getCats()||[];const cat=cats.find(c=>c.id===cid);
+    const cats=getCats()||[];
+    const cat=cats.find(c=>c.id===cid);
+    const tk=cat?.tasks.find(t=>t.id===tid);
+    if(!tk) return;
+    closeModal();
+    openModal(
+      '<div class="mo-title">Remove Task</div>'
+      +'<div style="font-size:15px;font-weight:500;color:var(--mocha);margin-bottom:6px">'+esc(tk.name)+'</div>'
+      +'<div style="font-size:12px;opacity:.5;margin-bottom:24px">How would you like to remove this task?</div>'
+      +'<button class="mo-del" data-action="del-task-today" data-cat="'+cid+'" data-task="'+tid+'">Skip This Day Only</button>'
+      +'<div style="font-size:11px;opacity:.4;text-align:center;margin:8px 0 16px">Hides from the current day. Still appears on all other days.</div>'
+      +'<button class="mo-del" data-action="del-task-forward" data-cat="'+cid+'" data-task="'+tid+'">Remove Today & Forward</button>'
+      +'<div style="font-size:11px;opacity:.4;text-align:center;margin:8px 0 16px">Keeps past history. Stops showing from today onwards.</div>'
+      +'<button class="mo-del" data-action="del-task-all" data-cat="'+cid+'" data-task="'+tid+'">Delete Everywhere</button>'
+      +'<div style="font-size:11px;opacity:.4;text-align:center;margin:8px 0 16px">Removes task and all history permanently.</div>'
+      +'<button class="mo-cancel" data-action="close-modal">Cancel</button>'
+    );
+    return;
+  }
+  if(a==="task-flip-cancel"){
+    const row=document.getElementById(btn.dataset.row);
+    if(row) unflipRow(row);return;
+  }
+  if(a==="del-task-today"){
+    const cid=btn.dataset.cat,tid=btn.dataset.task;
+    const c=chks();
+    c[activeDay+":"+cid+":"+tid+"__skip"]=true;
+    saveChks(c);closeModal();renderMain();return;
+  }
+  if(a==="del-task-forward"){
+    const cid=btn.dataset.cat,tid=btn.dataset.task;
+    const cats=getCats()||[];
+    const cat=cats.find(c=>c.id===cid);
+    const tk=cat?.tasks.find(t=>t.id===tid);
+    if(tk){
+      tk.deletedAfter=new Date().toISOString().split("T")[0];
+      saveCats(cats);
+    }
+    closeModal();renderMain();return;
+  }
+  if(a==="del-task-all"){
+    if(!confirm("This will permanently delete the task and all its history. Continue?")) return;
+    const cid=btn.dataset.cat,tid=btn.dataset.task;
+    const cats=getCats()||[];
+    const cat=cats.find(c=>c.id===cid);
     if(cat){cat.tasks=cat.tasks.filter(t=>t.id!==tid);}
+    // also remove all check history for this task
+    Object.keys(_checks).forEach(wk=>{
+      Object.keys(_checks[wk]).forEach(k=>{
+        if(k.includes(":"+cid+":"+tid)) delete _checks[wk][k];
+      });
+      sbSet("all_checks",_checks);
+    });
     saveCats(cats);closeModal();renderMain();return;
   }
   if(a==="cat-up"||a==="cat-dn"){
