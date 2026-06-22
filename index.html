@@ -580,22 +580,22 @@ function buildDay(){
         if(activeDate){
           if(thisDayStr===activeDate){
             const isOriginalDay=applies;
-            h+=fixedRow(cat.id,tk.id,tk.name+(isOriginalDay?"":" ↻"),chk,p.ac,tk.url);
+            h+=fixedRow(cat.id,tk.id,displayName+(isOriginalDay?"":" ↻"),chk,p.ac,displayUrl);
           } else if(chk){
-            h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url);
+            h+=fixedRow(cat.id,tk.id,displayName,chk,p.ac,displayUrl);
           }
         } else if(chk){
-          h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url);
+          h+=fixedRow(cat.id,tk.id,displayName,chk,p.ac,displayUrl);
         }
         return;
       }
 
       if(applies){
-        h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url);
+        h+=fixedRow(cat.id,tk.id,displayName,chk,p.ac,displayUrl);
         return;
       }
 
-      if(chk) h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url);
+      if(chk) h+=fixedRow(cat.id,tk.id,displayName,chk,p.ac,displayUrl);
     });
     if(!cat.tasks||cat.tasks.filter(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
@@ -619,19 +619,29 @@ function secHdr(cat,done,total,isO){
 
 function fixedRow(catId,tkId,name,chk,ac,url){
   const id="row_"+catId+"_"+tkId;
-  return '<div class="task-row" id="'+id+'" data-cat="'+catId+'" data-task="'+tkId+'" style="margin-bottom:10px;perspective:600px">'
-    // front face - normal task
-    +'<div class="task-front crow" style="backface-visibility:hidden;transition:transform .3s;transform-style:preserve-3d">'
+  return '<div class="task-row" id="'+id+'" data-cat="'+catId+'" data-task="'+tkId+'" style="margin-bottom:10px">'
+    // normal task row
+    +'<div class="task-front crow" style="margin-bottom:0">'
     +'<button class="cbtn'+(chk?" chk":" hv")+'" style="'+(chk?"background:"+ac+";border-color:"+ac:"border-color:"+ac)+'" data-action="check" data-cat="'+catId+'" data-tk="'+tkId+'">'+(chk?"&#x2713;":"")+"</button>"
     +'<div class="clabel'+(chk?" done":"")+'">'+esc(name)+"</div>"
     +(url?'<a href="'+esc(url)+'" target="_blank" rel="noopener" style="font-size:16px;text-decoration:none;opacity:.5;flex-shrink:0" onclick="event.stopPropagation()">🔗</a>':"")
     +'</div>'
-    // back face - options
-    +'<div class="task-back" style="display:none;gap:6px;padding:4px 0">'
-    +'<button data-action="del-task-today" data-cat="'+catId+'" data-task="'+tkId+'" style="flex:1;padding:10px 6px;border-radius:10px;border:none;background:#fdf0ee;color:#b85c52;font-size:10px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.4">🚫<br>Skip Today</button>'
-    +'<button data-action="del-task-forward" data-cat="'+catId+'" data-task="'+tkId+'" style="flex:1;padding:10px 6px;border-radius:10px;border:none;background:#fdf0ee;color:#b85c52;font-size:10px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.4">⏹<br>Stop Here</button>'
-    +'<button data-action="del-task-all" data-cat="'+catId+'" data-task="'+tkId+'" style="flex:1;padding:10px 6px;border-radius:10px;border:none;background:#fdf0ee;color:#b85c52;font-size:10px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.4">🗑️<br>Delete All</button>'
-    +'<button data-action="task-flip-cancel" data-row="'+id+'" style="flex:1;padding:10px 6px;border-radius:10px;border:1.5px solid var(--greige);background:transparent;color:var(--stone);font-size:10px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.4">✕<br>Cancel</button>'
+    // options row - hidden until long press
+    +'<div class="task-back" style="display:none;padding:8px 0 2px">'
+    // edit options
+    +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.4;margin-bottom:6px;padding:0 2px">Edit</div>'
+    +'<div style="display:flex;gap:6px;margin-bottom:10px">'
+    +'<button data-action="edit-task-today" data-cat="'+catId+'" data-task="'+tkId+'" style="flex:1;padding:10px 4px;border-radius:10px;border:1.5px solid var(--greige);background:var(--white);color:var(--walnut);font-size:9px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.5">✏️<br>Today Only</button>'
+    +'<button data-action="edit-task-series" data-cat="'+catId+'" data-task="'+tkId+'" style="flex:1;padding:10px 4px;border-radius:10px;border:1.5px solid var(--greige);background:var(--white);color:var(--walnut);font-size:9px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.5">🔁<br>Edit Series</button>'
+    +'</div>'
+    // remove options
+    +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.4;margin-bottom:6px;padding:0 2px">Remove</div>'
+    +'<div style="display:flex;gap:6px">'
+    +'<button data-action="del-task-today" data-cat="'+catId+'" data-task="'+tkId+'" style="flex:1;padding:10px 4px;border-radius:10px;border:none;background:#fdf0ee;color:#b85c52;font-size:9px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.5">🚫<br>Skip Today</button>'
+    +'<button data-action="del-task-forward" data-cat="'+catId+'" data-task="'+tkId+'" style="flex:1;padding:10px 4px;border-radius:10px;border:none;background:#fdf0ee;color:#b85c52;font-size:9px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.5">⏹<br>Stop Here</button>'
+    +'<button data-action="del-task-all" data-cat="'+catId+'" data-task="'+tkId+'" style="flex:1;padding:10px 4px;border-radius:10px;border:none;background:#fdf0ee;color:#b85c52;font-size:9px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.5">🗑️<br>Delete All</button>'
+    +'<button data-action="task-flip-cancel" data-row="'+id+'" style="flex:1;padding:10px 4px;border-radius:10px;border:1.5px solid var(--greige);background:transparent;color:var(--stone);font-size:9px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.5">✕<br>Cancel</button>'
+    +'</div>'
     +'</div>'
     +'</div>';
 }
@@ -699,6 +709,10 @@ function buildSchedule(){
         }
       }
       if(!show&&!chk) return;
+      const overrideKey=wk+":"+day+":"+cat.id+":"+tk.id+"__override";
+      const override=(_custom&&_custom[overrideKey])||{};
+      const displayName=override.name||tk.name;
+      const displayUrl=tk.url;
       const p=PALETTE[cat.color||0];
       const item={tk,cat,p,chk};
       if(tk.startTime) scheduled.push(item);
@@ -1325,6 +1339,51 @@ document.addEventListener("click",function(e){
       +'<button class="mo-cancel" data-action="close-modal">Cancel</button>'
     );
     return;
+  }
+  if(a==="edit-task-series"){
+    const cid=btn.dataset.cat,tid=btn.dataset.task;
+    // close the long press menu first
+    const row=document.getElementById("row_"+cid+"_"+tid);
+    if(row) unflipRow(row);
+    modalTask(cid,tid);return;
+  }
+  if(a==="edit-task-today"){
+    const cid=btn.dataset.cat,tid=btn.dataset.task;
+    const cats=getCats()||[];
+    const cat=cats.find(c=>c.id===cid);
+    const tk=cat?.tasks.find(t=>t.id===tid);
+    if(!tk) return;
+    const row=document.getElementById("row_"+cid+"_"+tid);
+    if(row) unflipRow(row);
+    // get any existing override for today
+    const overrideKey=wkKey()+":"+activeDay+":"+cid+":"+tid+"__override";
+    const existing=(_custom&&_custom[overrideKey])||{};
+    openModal(
+      '<div class="mo-title">Edit for '+activeDay+' Only</div>'
+      +'<div style="font-size:13px;opacity:.5;margin-bottom:20px">'+esc(tk.name)+'</div>'
+      +'<div class="mo-lbl">Task Name (today only)</div>'
+      +'<input class="mo-inp" id="override_name" placeholder="'+esc(tk.name)+'" value="'+esc(existing.name||"")+'">'
+      +'<div class="mo-lbl">Scheduled Time (today only)</div>'
+      +'<div class="mrow">'
+      +'<div><div style="font-size:9px;letter-spacing:1.5px;opacity:.5;margin-bottom:6px">START</div>'
+      +'<input class="mo-inp sm" id="override_start" type="time" value="'+(existing.startTime||tk.startTime||"")+'"></div>'
+      +'<div><div style="font-size:9px;letter-spacing:1.5px;opacity:.5;margin-bottom:6px">END</div>'
+      +'<input class="mo-inp sm" id="override_end" type="time" value="'+(existing.endTime||tk.endTime||"")+'"></div>'
+      +'</div>'
+      +'<button class="mo-save" data-action="save-override" data-cat="'+cid+'" data-task="'+tid+'">Save for Today</button>'
+      +'<button class="mo-cancel" data-action="close-modal">Cancel</button>'
+    );
+    return;
+  }
+  if(a==="save-override"){
+    const cid=btn.dataset.cat,tid=btn.dataset.task;
+    const name=(document.getElementById("override_name")||{}).value||"";
+    const startTime=((document.getElementById("override_start")||{}).value||"").trim();
+    const endTime=((document.getElementById("override_end")||{}).value||"").trim();
+    const overrideKey=wkKey()+":"+activeDay+":"+cid+":"+tid+"__override";
+    const c=cu();
+    c[overrideKey]={name:name.trim()||undefined,startTime:startTime||undefined,endTime:endTime||undefined};
+    saveCu(c);closeModal();renderMain();return;
   }
   if(a==="task-flip-cancel"){
     const row=document.getElementById(btn.dataset.row);
