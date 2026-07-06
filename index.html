@@ -1000,11 +1000,16 @@ function buildDashInSetup(){
 
   // ── WEEK sub-section
   const wkOpen=dashSubOpen==="week";
-  h+=dashSubHdr("week","📅 This Week",wkOpen);
+  h+=dashSubHdr("week","Week",wkOpen);
   if(wkOpen){
     const wk=wkKey();
     const{sunday}=parseWk(wk);
     const end=new Date(sunday);end.setDate(sunday.getDate()+6);
+    const wkLabel=MONTHS[sunday.getMonth()].slice(0,3)+" "+sunday.getDate()+" – "+MONTHS[end.getMonth()].slice(0,3)+" "+end.getDate()+", "+end.getFullYear();
+    h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
+      +'<button class="mnav-btn" data-action="prev">‹</button>'
+      +'<div style="font-family:Cormorant Garamond,serif;font-size:16px;font-weight:600;font-style:italic;color:var(--mocha);text-align:center">'+wkLabel+"</div>"
+      +'<button class="mnav-btn" data-action="next">›</button></div>';
     let wkDone=0,wkTotal=0;
     const byCat=[];
     cats.forEach(cat=>{
@@ -1021,49 +1026,40 @@ function buildDashInSetup(){
       return{name:d.slice(0,3),date:dateStr,done:p.done,total:p.total};
     });
     const wkPct=wkTotal?Math.round(wkDone/wkTotal*100):0;
-    h+=statCard(wkPct,wkDone,wkTotal,"Week of "+MONTHS[sunday.getMonth()].slice(0,3)+" "+sunday.getDate());
-    h+='<div style="margin-bottom:12px">';
-    byDay.forEach(d=>{
-      if(!d.total) return;
-      const pct=Math.round(d.done/d.total*100);
-      h+=miniBar(d.name+" "+d.date,d.done,d.total,pct);
-    });
-    h+="</div>";
-    if(byCat.length){
-      h+='<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.4;margin-bottom:8px">By Category</div>';
-      byCat.forEach(c=>{
-        const pct=Math.round(c.done/c.total*100);
-        h+=miniBar(PALETTE[c.color||0].ac?c.icon+" "+c.name:c.name,c.done,c.total,pct,PALETTE[c.color||0].ac);
-      });
+    if(!wkTotal){
+      h+='<div style="text-align:center;padding:20px;opacity:.35;font-size:13px">No data for this week.</div>';
+    } else {
+      h+=statCard(wkPct,wkDone,wkTotal,"Week of "+MONTHS[sunday.getMonth()].slice(0,3)+" "+sunday.getDate());
+      h+='<div style="margin-bottom:12px">';
+      byDay.forEach(d=>{if(!d.total) return;const pct=Math.round(d.done/d.total*100);h+=miniBar(d.name+" "+d.date,d.done,d.total,pct);});
+      h+="</div>";
+      if(byCat.length){
+        h+='<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.4;margin-bottom:8px">By Category</div>';
+        byCat.forEach(c=>{const pct=Math.round(c.done/c.total*100);h+=miniBar(c.icon+" "+c.name,c.done,c.total,pct,PALETTE[c.color||0].ac);});
+      }
+      h+='<button class="exp-gold" data-action="export-week" style="margin-top:12px">⬇ Download Week CSV</button>';
     }
-    h+='<button class="exp-gold" data-action="export-week" style="margin-top:12px">⬇ Download Week CSV</button>';
   }
 
   // ── MONTH sub-section
   const moOpen=dashSubOpen==="month";
-  h+=dashSubHdr("month","📆 "+MONTHS[dashM]+" "+dashY,moOpen);
+  h+=dashSubHdr("month","Month",moOpen);
   if(moOpen){
     const canN=!(dashY===now.getFullYear()&&dashM>=now.getMonth());
     h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
       +'<button class="mnav-btn" data-action="dash-prev">‹</button>'
-      +'<div style="font-family:Cormorant Garamond,serif;font-size:20px;font-weight:600;font-style:italic;color:var(--mocha)">'+MONTHS[dashM]+" "+dashY+"</div>"
+      +'<div style="font-family:Cormorant Garamond,serif;font-size:18px;font-weight:600;font-style:italic;color:var(--mocha)">'+MONTHS[dashM]+" "+dashY+"</div>"
       +'<button class="mnav-btn" data-action="dash-next"'+(canN?"":' disabled style="opacity:.3;cursor:default"')+">›</button></div>";
-
-    // Only count dates actually within the month
     const daysInMonth=new Date(dashY,dashM+1,0).getDate();
     let mDone=0,mTotal=0;
     const byCatM={};cats.forEach(c=>{byCatM[c.id]={name:c.name,icon:c.icon,color:c.color,done:0,total:0};});
     const byWeekM=[];
-
-    // Get all weeks that overlap this month
-    const allWks=Object.keys(_checks).sort();
-    allWks.forEach(wk=>{
+    Object.keys(_checks).sort().forEach(wk=>{
       const{sunday}=parseWk(wk);
-      let wkDone=0,wkTotal=0;
-      let wkLabel="";
+      let wkDone=0,wkTotal=0,wkLabel="";
       DAYS.forEach((day,di)=>{
         const d=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+di);
-        if(d.getMonth()!==dashM||d.getFullYear()!==dashY) return; // only this month
+        if(d.getMonth()!==dashM||d.getFullYear()!==dashY) return;
         if(!wkLabel) wkLabel=(d.getMonth()+1)+"/"+d.getDate();
         cats.forEach(cat=>{
           const p=catProg(cat,day,wk);
@@ -1074,23 +1070,16 @@ function buildDashInSetup(){
       mDone+=wkDone;mTotal+=wkTotal;
       if(wkTotal>0) byWeekM.push({label:"Week of "+wkLabel,done:wkDone,total:wkTotal});
     });
-
     const mPct=mTotal?Math.round(mDone/mTotal*100):0;
     if(!mTotal){
-      h+='<div style="text-align:center;padding:30px;opacity:.35;font-size:13px">No data for this month yet.</div>';
+      h+='<div style="text-align:center;padding:20px;opacity:.35;font-size:13px">No data for this month yet.</div>';
     } else {
       h+=statCard(mPct,mDone,mTotal,MONTHS[dashM]+" "+dashY);
-      byWeekM.forEach(w=>{
-        const pct=Math.round(w.done/w.total*100);
-        h+=miniBar(w.label,w.done,w.total,pct);
-      });
+      byWeekM.forEach(w=>{const pct=Math.round(w.done/w.total*100);h+=miniBar(w.label,w.done,w.total,pct);});
       const catArr=Object.values(byCatM).filter(c=>c.total>0);
       if(catArr.length){
         h+='<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.4;margin:12px 0 8px">By Category</div>';
-        catArr.forEach(c=>{
-          const pct=Math.round(c.done/c.total*100);
-          h+=miniBar(c.icon+" "+c.name,c.done,c.total,pct,PALETTE[cats.find(x=>x.name===c.name)?.color||0]?.ac);
-        });
+        catArr.forEach(c=>{const pct=Math.round(c.done/c.total*100);h+=miniBar(c.icon+" "+c.name,c.done,c.total,pct,PALETTE[cats.find(x=>x.name===c.name)?.color||0]?.ac);});
       }
       h+='<button class="exp-gold" data-action="export-month" style="margin-top:12px">⬇ Download '+MONTHS[dashM]+' CSV</button>';
     }
@@ -1098,14 +1087,13 @@ function buildDashInSetup(){
 
   // ── YEAR sub-section
   const yrOpen=dashSubOpen==="year";
-  h+=dashSubHdr("year","📊 "+dashY,yrOpen);
+  h+=dashSubHdr("year","Year",yrOpen);
   if(yrOpen){
     const canNY=dashY<now.getFullYear();
     h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
       +'<button class="mnav-btn" data-action="dash-year-prev">‹</button>'
-      +'<div style="font-family:Cormorant Garamond,serif;font-size:20px;font-weight:600;font-style:italic;color:var(--mocha)">'+dashY+"</div>"
+      +'<div style="font-family:Cormorant Garamond,serif;font-size:18px;font-weight:600;font-style:italic;color:var(--mocha)">'+dashY+"</div>"
       +'<button class="mnav-btn" data-action="dash-year-next"'+(canNY?"":' disabled style="opacity:.3;cursor:default"')+">›</button></div>";
-
     let yrDone=0,yrTotal=0;
     const byMonthY=[];
     for(let m=0;m<12;m++){
@@ -1115,10 +1103,7 @@ function buildDashInSetup(){
         DAYS.forEach((day,di)=>{
           const d=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+di);
           if(d.getMonth()!==m||d.getFullYear()!==dashY) return;
-          cats.forEach(cat=>{
-            const p=catProg(cat,day,wk);
-            mDone+=p.done;mTotal+=p.total;
-          });
+          cats.forEach(cat=>{const p=catProg(cat,day,wk);mDone+=p.done;mTotal+=p.total;});
         });
       });
       yrDone+=mDone;yrTotal+=mTotal;
@@ -1126,19 +1111,38 @@ function buildDashInSetup(){
     }
     const yrPct=yrTotal?Math.round(yrDone/yrTotal*100):0;
     if(!yrTotal){
-      h+='<div style="text-align:center;padding:30px;opacity:.35;font-size:13px">No data for '+dashY+' yet.</div>';
+      h+='<div style="text-align:center;padding:20px;opacity:.35;font-size:13px">No data for '+dashY+' yet.</div>';
     } else {
       h+=statCard(yrPct,yrDone,yrTotal,dashY+" Overview");
-      byMonthY.forEach(m=>{
-        const pct=Math.round(m.done/m.total*100);
-        h+=miniBar(m.label,m.done,m.total,pct);
-      });
+      byMonthY.forEach(m=>{const pct=Math.round(m.done/m.total*100);h+=miniBar(m.label,m.done,m.total,pct);});
       h+='<button class="exp-gold" data-action="export-year" style="margin-top:12px">⬇ Download '+dashY+' CSV</button>';
+    }
+  }
+
+  // ── CUSTOM sub-section
+  const custOpen=dashSubOpen==="custom";
+  h+=dashSubHdr("custom","Custom Range",custOpen);
+  if(custOpen){
+    const today=(()=>{const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");})();
+    h+='<div class="mo-lbl" style="margin-top:0">Start Date</div>'
+      +'<input class="mo-inp" type="date" id="custom_start" value="'+(customStart||today)+'" style="font-family:Jost,sans-serif;font-size:14px;margin-bottom:10px">'
+      +'<div class="mo-lbl">End Date</div>'
+      +'<input class="mo-inp" type="date" id="custom_end" value="'+(customEnd||today)+'" style="font-family:Jost,sans-serif;font-size:14px;margin-bottom:14px">'
+      +'<button class="done-btn" data-action="custom-range-go" style="margin-bottom:14px">View Range</button>';
+    if(customStart&&customEnd&&customRangeData){
+      const{done,total,pct,byCat}=customRangeData;
+      h+=statCard(pct,done,total,customStart+" to "+customEnd);
+      if(byCat.length){
+        h+='<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.4;margin-bottom:8px">By Category</div>';
+        byCat.forEach(c=>{const p=Math.round(c.done/c.total*100);h+=miniBar(c.icon+" "+c.name,c.done,c.total,p,PALETTE[c.color||0]?.ac);});
+      }
+      h+='<button class="exp-gold" data-action="export-custom" style="margin-top:12px">⬇ Download Range CSV</button>';
     }
   }
 
   return h;
 }
+
 
 function dashSubHdr(id,label,isOpen){
   return '<div style="margin-bottom:8px">'
