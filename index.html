@@ -455,7 +455,7 @@ function renderHeader(){
 
   const vt=document.getElementById("view-tabs");vt.innerHTML="";
   // Nav: Day | Schedule | Priorities | Dash
-  [["day","📅 Day"],["schedule","🗓 Schedule"],["priorities","🎯 Priorities"],["dashboard","📈 Dash"]].forEach(([v,l])=>{
+  [["day","📅 Day"],["schedule","🗓 Schedule"],["priorities","🎯 Priorities"]].forEach(([v,l])=>{
     const b=document.createElement("button");
     b.className="vtab"+(view===v?" active":"");b.textContent=l;b.dataset.action="view-"+v;
     vt.appendChild(b);
@@ -497,7 +497,6 @@ function renderMain(){
   else if(view==="day") el.innerHTML=buildDay();
   else if(view==="schedule") el.innerHTML=buildSchedule();
   else if(view==="priorities") el.innerHTML=buildPriorities();
-  else el.innerHTML=buildDash();
   setTimeout(()=>{document.getElementById("main").style.paddingTop=document.getElementById("header").offsetHeight+"px"},0);
   syncInputs();
 }
@@ -878,78 +877,299 @@ function buildDash(){
 }
 
 // ── Setup View ─────────────────────────────────────────────────────────────────
+let setupOpen=null; // which section is open: "categories"|"data"|"dash"
+let dashSubOpen=null; // which dash sub: "week"|"month"|"year"
+
+function renderSetupSection(sec){
+  setupOpen=sec;
+  document.getElementById("main").innerHTML=buildSetup();
+  document.getElementById("main").style.paddingTop=document.getElementById("header").offsetHeight+"px";
+}
+
 function buildSetup(){
   const cats=getCats()||[];
   let h='<div class="sv">'
-    +'<div class="s-hero"><div class="s-hero-t">✏️ Customize Your Planner</div>'
-    +'<div class="s-hero-s">Add, edit, and reorder categories and tasks.</div></div>'
-    +'<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">'
-    +'<button class="add-cat-btn" data-action="new-cat" style="margin-top:0">＋ Add New Category</button>'
-    +'<button class="done-btn" data-action="go-planner" style="margin-top:0">✓ Done — Go to Planner</button>'
-    +'<button class="add-cat-btn" data-action="export-all" style="margin-top:0">⬇ Export All Data (Backup)</button>'
-    +'<button class="add-cat-btn" data-action="import-all" style="margin-top:0">⬆ Import Data (Restore)</button>'
-    +'</div>';
-  if(!cats.length){
-    h+='<div style="text-align:center;padding:40px 20px;opacity:.5">'
-      +'<div style="font-size:44px;margin-bottom:12px">🗂️</div>'
-      +'<div style="font-size:15px;font-weight:600;margin-bottom:6px">No categories yet</div>'
-      +'<div style="font-size:13px;opacity:.7">Tap above to get started!</div></div>';
-  }
-  cats.forEach((cat,ci)=>{
-    const p=PALETTE[cat.color||0];
-    const isOpen=openSec===("setup_"+cat.id);
-    const visibleTasks=(cat.tasks||[]).filter(tk=>{
-      if(tk.freq&&tk.freq.type==="once"){
-        const allChks=_checks||{};
-        const completed=Object.keys(allChks).some(w=>Object.keys(allChks[w]).some(k=>k.includes(cat.id+":"+tk.id)&&allChks[w][k]));
-        return !completed;
-      }
-      return true;
-    });
-    const dayOrder={daily:-1,days:0,weekly:1,monthly:2,annually:3,once:4};
-    const sortedTasks=[...visibleTasks].sort((a,b)=>{
-      const fa=a.freq||{type:"daily"},fb=b.freq||{type:"daily"};
-      const oa=dayOrder[fa.type]??0,ob=dayOrder[fb.type]??0;
-      if(oa!==ob) return oa-ob;
-      if(fa.type==="days"&&fb.type==="days") return Math.min(...(fa.days||[0]))-Math.min(...(fb.days||[0]));
-      if(fa.type==="monthly"&&fb.type==="monthly") return (fa.date||1)-(fb.date||1);
-      if(fa.type==="annually"&&fb.type==="annually") return fa.month!==fb.month?(fa.month||0)-(fb.month||0):(fa.date||1)-(fb.date||1);
-      return 0;
-    });
-    const priLabel=(tk)=>{const pr=PRIORITIES.find(p=>p.id===(tk.priority||4));return pr?pr.emoji+" "+pr.label:"";};
-    h+='<div class="s-cat" style="border-color:'+p.lt+'">'
-      +'<div class="s-cat-hdr" data-action="toggle-sec" data-sec="setup_'+cat.id+'" style="cursor:pointer">'
-      +'<span style="font-size:22px">'+cat.icon+"</span>"
-      +'<div style="flex:1"><div class="s-cat-name" style="color:'+p.ac+'">'+cat.name+"</div>"
-      +'<div class="s-cat-freq">'+fLabel(cat.freq)+(sortedTasks.length>0?" · "+sortedTasks.length+" task"+(sortedTasks.length!==1?"s":""):"")+"</div></div>"
-      +'<div class="s-cat-btns">'
-      +(ci>0?'<button class="ibtn" data-action="cat-up" data-ci="'+ci+'">↑</button>':"")
-      +(ci<cats.length-1?'<button class="ibtn" data-action="cat-dn" data-ci="'+ci+'">↓</button>':"")
-      +'<button class="ibtn" data-action="edit-cat" data-cat="'+cat.id+'"><span style="pointer-events:none">✏️</span></button>'
-      +'<button class="ibtn" data-action="del-cat" data-cat="'+cat.id+'"><span style="pointer-events:none">🗑️</span></button>'
-      +'<span style="font-size:14px;opacity:.3;margin-left:2px">'+(isOpen?"▾":"▸")+"</span>"
-      +"</div></div>";
-    if(isOpen){
-      if(sortedTasks.length>0){
-        h+='<div class="s-tasks">';
-        sortedTasks.forEach(tk=>{
-          h+='<div class="s-task">'
-            +'<div style="flex:1"><div class="s-task-name">'+esc(tk.name)+(tk.rollover?' <span style="font-size:10px;opacity:.5">↻</span>':"")+(tk.url?' <span style="font-size:12px;opacity:.5">🔗</span>':"")+"</div>"
-            +'<div class="s-task-freq">'+fLabel(tk.freq)+" · "+priLabel(tk)+"</div></div>"
-            +'<button class="ibtn" data-action="edit-task" data-cat="'+cat.id+'" data-task="'+tk.id+'"><span style="pointer-events:none">✏️</span></button>'
-            +'<button class="ibtn" data-action="del-task" data-cat="'+cat.id+'" data-task="'+tk.id+'"><span style="pointer-events:none">🗑️</span></button>'
-            +"</div>";
-        });
-        h+="</div>";
-      }
-      h+='<div style="padding:0 15px 14px">'
-        +'<button class="more-btn" data-action="new-task" data-cat="'+cat.id+'">+ Add Task</button>'
-        +"</div>";
+    +'<div class="s-hero"><div class="s-hero-t">⚙️ Settings</div>'
+    +'<div class="s-hero-s">Manage your planner.</div></div>';
+
+  // ── CATEGORIES section
+  const catsOpen=setupOpen==="categories";
+  h+=setupSection("categories","📂","CATEGORIES",catsOpen);
+  if(catsOpen){
+    h+='<div style="padding:0 0 16px">';
+    h+='<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">'
+      +'<button class="add-cat-btn" data-action="new-cat" style="margin:0">＋ Add New Category</button>'
+      +'</div>';
+    if(!cats.length){
+      h+='<div style="text-align:center;padding:30px 20px;opacity:.5;font-size:13px">No categories yet. Add one above!</div>';
     }
+    cats.forEach((cat,ci)=>{
+      const p=PALETTE[cat.color||0];
+      const isOpen=openSec===("setup_"+cat.id);
+      const visibleTasks=(cat.tasks||[]).filter(tk=>{
+        if(tk.freq&&tk.freq.type==="once"){
+          const allChks=_checks||{};
+          const completed=Object.keys(allChks).some(w=>Object.keys(allChks[w]).some(k=>k.includes(cat.id+":"+tk.id)&&allChks[w][k]));
+          return !completed;
+        }
+        return true;
+      });
+      const dayOrder={daily:-1,days:0,weekly:1,monthly:2,annually:3,once:4};
+      const sortedTasks=[...visibleTasks].sort((a,b)=>{
+        const fa=a.freq||{type:"daily"},fb=b.freq||{type:"daily"};
+        const oa=dayOrder[fa.type]??0,ob=dayOrder[fb.type]??0;
+        if(oa!==ob) return oa-ob;
+        return 0;
+      });
+      const priLabel=(tk)=>{const pr=PRIORITIES.find(p=>p.id===(tk.priority||4));return pr?pr.emoji+" "+pr.label:"";};
+      h+='<div class="s-cat" style="border-color:'+p.lt+'">';
+      h+='<div class="s-cat-hdr" data-action="toggle-sec" data-sec="setup_'+cat.id+'" style="cursor:pointer">'
+        +'<span style="font-size:22px">'+cat.icon+"</span>"
+        +'<div style="flex:1"><div class="s-cat-name" style="color:'+p.ac+'">'+cat.name+"</div>"
+        +'<div class="s-cat-freq">'+fLabel(cat.freq)+(sortedTasks.length>0?" · "+sortedTasks.length+" task"+(sortedTasks.length!==1?"s":""):"")+"</div></div>"
+        +'<div class="s-cat-btns">'
+        +(ci>0?'<button class="ibtn" data-action="cat-up" data-ci="'+ci+'"><span style="pointer-events:none">↑</span></button>':"")
+        +(ci<cats.length-1?'<button class="ibtn" data-action="cat-dn" data-ci="'+ci+'"><span style="pointer-events:none">↓</span></button>':"")
+        +'<button class="ibtn" data-action="edit-cat" data-cat="'+cat.id+'"><span style="pointer-events:none">✏️</span></button>'
+        +'<button class="ibtn" data-action="del-cat" data-cat="'+cat.id+'"><span style="pointer-events:none">🗑️</span></button>'
+        +'<span style="font-size:14px;opacity:.3;margin-left:2px">'+(isOpen?"▾":"▸")+"</span>"
+        +"</div></div>";
+      if(isOpen){
+        if(sortedTasks.length>0){
+          h+='<div class="s-tasks">';
+          sortedTasks.forEach(tk=>{
+            h+='<div class="s-task">'
+              +'<div style="flex:1"><div class="s-task-name">'+esc(tk.name)+(tk.rollover?' <span style="font-size:10px;opacity:.5">↻</span>':"")+(tk.url?' <span style="font-size:12px;opacity:.5">🔗</span>':"")+"</div>"
+              +'<div class="s-task-freq">'+fLabel(tk.freq)+" · "+priLabel(tk)+"</div></div>"
+              +'<button class="ibtn" data-action="edit-task" data-cat="'+cat.id+'" data-task="'+tk.id+'"><span style="pointer-events:none">✏️</span></button>'
+              +'<button class="ibtn" data-action="del-task" data-cat="'+cat.id+'" data-task="'+tk.id+'"><span style="pointer-events:none">🗑️</span></button>'
+              +"</div>";
+          });
+          h+="</div>";
+        }
+        h+='<div style="padding:0 15px 14px">'
+          +'<button class="more-btn" data-action="new-task" data-cat="'+cat.id+'">+ Add Task</button>'
+          +"</div>";
+      }
+      h+="</div>";
+    });
     h+="</div>";
-  });
+  }
+
+  // ── DATA section
+  const dataOpen=setupOpen==="data";
+  h+=setupSection("data","💾","DATA",dataOpen);
+  if(dataOpen){
+    h+='<div style="padding:0 0 16px;display:flex;flex-direction:column;gap:10px">'
+      +'<div style="font-size:12px;color:var(--walnut);line-height:1.6;padding:12px;background:var(--greige);border-radius:10px">Export saves all your categories and tasks. Import restores them from a backup file.</div>'
+      +'<button class="done-btn" data-action="export-all" style="background:var(--walnut)">⬇ Export Backup</button>'
+      +'<button class="add-cat-btn" data-action="import-all">⬆ Import Backup</button>'
+      +"</div>";
+  }
+
+  // ── DASH section
+  const dashOpen=setupOpen==="dash";
+  h+=setupSection("dash","📈","DASHBOARD",dashOpen);
+  if(dashOpen){
+    h+='<div style="padding:0 0 16px">';
+    h+=buildDashInSetup();
+    h+="</div>";
+  }
+
+  // ── GO TO PLANNER
+  h+='<button class="done-btn" data-action="go-planner" style="margin-top:8px">✓ Go to Planner</button>';
+
   return h+"</div>";
 }
+
+function setupSection(id,icon,label,isOpen){
+  return '<div style="background:var(--white);border-radius:14px;border:1px solid #EDE8E2;margin-bottom:10px;overflow:hidden">'
+    +'<button style="width:100%;padding:16px;background:'+(isOpen?"var(--greige)":"var(--white)")+';border:none;display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;font-family:Jost,sans-serif" data-action="toggle-setup-sec" data-sec="'+id+'">'
+    +'<span style="font-size:20px">'+icon+"</span>"
+    +'<span style="font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--mocha);flex:1">'+label+"</span>"
+    +'<span style="font-size:14px;opacity:.3;color:var(--walnut)">'+(isOpen?"▾":"▸")+"</span>"
+    +"</button>"
+    +(isOpen?'<div style="padding:0 16px">':"")
+    +(isOpen?"</div>":"");
+}
+
+function buildDashInSetup(){
+  const cats=getCats()||[];
+  const now=new Date();
+  let h="";
+
+  // ── WEEK sub-section
+  const wkOpen=dashSubOpen==="week";
+  h+=dashSubHdr("week","📅 This Week",wkOpen);
+  if(wkOpen){
+    const wk=wkKey();
+    const{sunday}=parseWk(wk);
+    const end=new Date(sunday);end.setDate(sunday.getDate()+6);
+    let wkDone=0,wkTotal=0;
+    const byCat=[];
+    cats.forEach(cat=>{
+      let cd=0,ct=0;
+      DAYS.forEach(d=>{const p=catProg(cat,d,wk);cd+=p.done;ct+=p.total;});
+      wkDone+=cd;wkTotal+=ct;
+      if(ct>0) byCat.push({name:cat.name,icon:cat.icon,color:cat.color,done:cd,total:ct});
+    });
+    const byDay=DAYS.map((d,di)=>{
+      const wkSun=new Date(sunday);
+      const dayDate=new Date(wkSun.getFullYear(),wkSun.getMonth(),wkSun.getDate()+di);
+      const dateStr=(dayDate.getMonth()+1)+"/"+dayDate.getDate();
+      const p=dayProg(d,wk);
+      return{name:d.slice(0,3),date:dateStr,done:p.done,total:p.total};
+    });
+    const wkPct=wkTotal?Math.round(wkDone/wkTotal*100):0;
+    h+=statCard(wkPct,wkDone,wkTotal,"Week of "+MONTHS[sunday.getMonth()].slice(0,3)+" "+sunday.getDate());
+    h+='<div style="margin-bottom:12px">';
+    byDay.forEach(d=>{
+      if(!d.total) return;
+      const pct=Math.round(d.done/d.total*100);
+      h+=miniBar(d.name+" "+d.date,d.done,d.total,pct);
+    });
+    h+="</div>";
+    if(byCat.length){
+      h+='<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.4;margin-bottom:8px">By Category</div>';
+      byCat.forEach(c=>{
+        const pct=Math.round(c.done/c.total*100);
+        h+=miniBar(PALETTE[c.color||0].ac?c.icon+" "+c.name:c.name,c.done,c.total,pct,PALETTE[c.color||0].ac);
+      });
+    }
+    h+='<button class="exp-gold" data-action="export-week" style="margin-top:12px">⬇ Download Week CSV</button>';
+  }
+
+  // ── MONTH sub-section
+  const moOpen=dashSubOpen==="month";
+  h+=dashSubHdr("month","📆 "+MONTHS[dashM]+" "+dashY,moOpen);
+  if(moOpen){
+    const canN=!(dashY===now.getFullYear()&&dashM>=now.getMonth());
+    h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
+      +'<button class="mnav-btn" data-action="dash-prev">‹</button>'
+      +'<div style="font-family:Cormorant Garamond,serif;font-size:20px;font-weight:600;font-style:italic;color:var(--mocha)">'+MONTHS[dashM]+" "+dashY+"</div>"
+      +'<button class="mnav-btn" data-action="dash-next"'+(canN?"":' disabled style="opacity:.3;cursor:default"')+">›</button></div>";
+
+    // Only count dates actually within the month
+    const daysInMonth=new Date(dashY,dashM+1,0).getDate();
+    let mDone=0,mTotal=0;
+    const byCatM={};cats.forEach(c=>{byCatM[c.id]={name:c.name,icon:c.icon,color:c.color,done:0,total:0};});
+    const byWeekM=[];
+
+    // Get all weeks that overlap this month
+    const allWks=Object.keys(_checks).sort();
+    allWks.forEach(wk=>{
+      const{sunday}=parseWk(wk);
+      let wkDone=0,wkTotal=0;
+      let wkLabel="";
+      DAYS.forEach((day,di)=>{
+        const d=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+di);
+        if(d.getMonth()!==dashM||d.getFullYear()!==dashY) return; // only this month
+        if(!wkLabel) wkLabel=(d.getMonth()+1)+"/"+d.getDate();
+        cats.forEach(cat=>{
+          const p=catProg(cat,day,wk);
+          wkDone+=p.done;wkTotal+=p.total;
+          if(byCatM[cat.id]){byCatM[cat.id].done+=p.done;byCatM[cat.id].total+=p.total;}
+        });
+      });
+      mDone+=wkDone;mTotal+=wkTotal;
+      if(wkTotal>0) byWeekM.push({label:"Week of "+wkLabel,done:wkDone,total:wkTotal});
+    });
+
+    const mPct=mTotal?Math.round(mDone/mTotal*100):0;
+    if(!mTotal){
+      h+='<div style="text-align:center;padding:30px;opacity:.35;font-size:13px">No data for this month yet.</div>';
+    } else {
+      h+=statCard(mPct,mDone,mTotal,MONTHS[dashM]+" "+dashY);
+      byWeekM.forEach(w=>{
+        const pct=Math.round(w.done/w.total*100);
+        h+=miniBar(w.label,w.done,w.total,pct);
+      });
+      const catArr=Object.values(byCatM).filter(c=>c.total>0);
+      if(catArr.length){
+        h+='<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.4;margin:12px 0 8px">By Category</div>';
+        catArr.forEach(c=>{
+          const pct=Math.round(c.done/c.total*100);
+          h+=miniBar(c.icon+" "+c.name,c.done,c.total,pct,PALETTE[cats.find(x=>x.name===c.name)?.color||0]?.ac);
+        });
+      }
+      h+='<button class="exp-gold" data-action="export-month" style="margin-top:12px">⬇ Download '+MONTHS[dashM]+' CSV</button>';
+    }
+  }
+
+  // ── YEAR sub-section
+  const yrOpen=dashSubOpen==="year";
+  h+=dashSubHdr("year","📊 "+dashY,yrOpen);
+  if(yrOpen){
+    const canNY=dashY<now.getFullYear();
+    h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
+      +'<button class="mnav-btn" data-action="dash-year-prev">‹</button>'
+      +'<div style="font-family:Cormorant Garamond,serif;font-size:20px;font-weight:600;font-style:italic;color:var(--mocha)">'+dashY+"</div>"
+      +'<button class="mnav-btn" data-action="dash-year-next"'+(canNY?"":' disabled style="opacity:.3;cursor:default"')+">›</button></div>";
+
+    let yrDone=0,yrTotal=0;
+    const byMonthY=[];
+    for(let m=0;m<12;m++){
+      let mDone=0,mTotal=0;
+      Object.keys(_checks).forEach(wk=>{
+        const{sunday}=parseWk(wk);
+        DAYS.forEach((day,di)=>{
+          const d=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+di);
+          if(d.getMonth()!==m||d.getFullYear()!==dashY) return;
+          cats.forEach(cat=>{
+            const p=catProg(cat,day,wk);
+            mDone+=p.done;mTotal+=p.total;
+          });
+        });
+      });
+      yrDone+=mDone;yrTotal+=mTotal;
+      if(mTotal>0) byMonthY.push({label:MONTHS[m].slice(0,3),done:mDone,total:mTotal});
+    }
+    const yrPct=yrTotal?Math.round(yrDone/yrTotal*100):0;
+    if(!yrTotal){
+      h+='<div style="text-align:center;padding:30px;opacity:.35;font-size:13px">No data for '+dashY+' yet.</div>';
+    } else {
+      h+=statCard(yrPct,yrDone,yrTotal,dashY+" Overview");
+      byMonthY.forEach(m=>{
+        const pct=Math.round(m.done/m.total*100);
+        h+=miniBar(m.label,m.done,m.total,pct);
+      });
+      h+='<button class="exp-gold" data-action="export-year" style="margin-top:12px">⬇ Download '+dashY+' CSV</button>';
+    }
+  }
+
+  return h;
+}
+
+function dashSubHdr(id,label,isOpen){
+  return '<div style="margin-bottom:8px">'
+    +'<button style="width:100%;padding:12px 14px;background:'+(isOpen?"var(--greige)":"rgba(255,255,255,.6)")+';border:1px solid #EDE8E2;border-radius:10px;display:flex;align-items:center;gap:10px;cursor:pointer;text-align:left;font-family:Jost,sans-serif" data-action="toggle-dash-sub" data-sub="'+id+'">'
+    +'<span style="font-size:13px;font-weight:500;color:var(--mocha);flex:1">'+label+"</span>"
+    +'<span style="font-size:13px;opacity:.3">'+(isOpen?"▾":"▸")+"</span>"
+    +"</button></div>";
+}
+
+function statCard(pct,done,total,label){
+  return '<div style="background:var(--greige);border-radius:12px;padding:16px;text-align:center;margin-bottom:14px">'
+    +'<div style="font-size:9px;letter-spacing:3px;text-transform:uppercase;opacity:.5;margin-bottom:6px">'+label+"</div>"
+    +'<div style="font-family:Cormorant Garamond,serif;font-size:52px;font-weight:600;color:var(--mocha);font-style:italic;line-height:1">'+pct+"%</div>"
+    +'<div style="font-size:11px;opacity:.5;margin-top:6px">'+done+" of "+total+" tasks</div>"
+    +"</div>";
+}
+
+function miniBar(label,done,total,pct,color){
+  color=color||"var(--walnut)";
+  return '<div style="margin-bottom:8px">'
+    +'<div style="display:flex;justify-content:space-between;margin-bottom:4px">'
+    +'<div style="font-size:12px;color:var(--ink)">'+label+"</div>"
+    +'<div style="font-size:12px;font-weight:500;color:var(--walnut)">'+pct+"%</div>"
+    +"</div>"
+    +'<div style="height:4px;background:var(--greige);border-radius:2px;overflow:hidden">'
+    +'<div style="height:100%;width:'+pct+'%;background:'+color+';border-radius:2px;transition:width .3s"></div>'
+    +"</div>"
+    +'<div style="font-size:10px;opacity:.35;margin-top:2px">'+done+"/"+total+"</div>"
+    +"</div>";
+}
+
 
 // ── Modals ─────────────────────────────────────────────────────────────────────
 function openModal(html){
@@ -1219,12 +1439,28 @@ document.addEventListener("click",function(e){
     openSec=null;render();return;
   }
   if(a==="toggle-sec"){openSec=openSec===btn.dataset.sec?null:btn.dataset.sec;renderMain();return;}
+  if(a==="toggle-setup-sec"){
+    setupOpen=setupOpen===btn.dataset.sec?null:btn.dataset.sec;
+    openSec=null;
+    document.getElementById("main").innerHTML=buildSetup();
+    document.getElementById("main").style.paddingTop=document.getElementById("header").offsetHeight+"px";
+    return;
+  }
+  if(a==="toggle-dash-sub"){
+    dashSubOpen=dashSubOpen===btn.dataset.sub?null:btn.dataset.sub;
+    document.getElementById("main").innerHTML=buildSetup();
+    document.getElementById("main").style.paddingTop=document.getElementById("header").offsetHeight+"px";
+    return;
+  }
   if(a==="export-all"){exportAll();return;}
   if(a==="import-all"){importAll();return;}
   if(a==="export-week"){exportWeek();return;}
   if(a==="export-month"){exportMonth();return;}
-  if(a==="dash-prev"){dashM--;if(dashM<0){dashM=11;dashY--;}renderMain();return;}
-  if(a==="dash-next"){dashM++;if(dashM>11){dashM=0;dashY++;}renderMain();return;}
+  if(a==="export-year"){exportYear();return;}
+  if(a==="dash-prev"){dashM--;if(dashM<0){dashM=11;dashY--;}renderSetupSection("dash");return;}
+  if(a==="dash-next"){dashM++;if(dashM>11){dashM=0;dashY++;}renderSetupSection("dash");return;}
+  if(a==="dash-year-prev"){dashY--;renderSetupSection("dash");return;}
+  if(a==="dash-year-next"){if(dashY<new Date().getFullYear()){dashY++;renderSetupSection("dash");}return;}
   if(a==="check"){
     const{cat,tk}=btn.dataset;
     const iid="wi_"+cat+"_"+tk.replace(/[^a-z0-9]/gi,"_");
@@ -1469,6 +1705,33 @@ function exportMonth(){
   });
   dlCSV(rows,"life-planner-"+MONTHS[dashM]+"-"+dashY+".csv");
 }
+
+function exportYear(){
+  const cats=getCats()||[];
+  const rows=[["Month","Day","Category","Task","Priority","Completed"]];
+  const now=new Date();
+  for(let m=0;m<12;m++){
+    Object.keys(_checks).forEach(wk=>{
+      const{sunday}=parseWk(wk);
+      const ch=_checks[wk]||{};
+      DAYS.forEach((day,di)=>{
+        const d=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+di);
+        if(d.getMonth()!==m||d.getFullYear()!==dashY) return;
+        cats.forEach(cat=>{
+          if(cat.isHabits) return;
+          (cat.tasks||[]).forEach(tk=>{
+            const applies=tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di);
+            if(!applies) return;
+            const pr=PRIORITIES.find(p=>p.id===(tk.priority||4));
+            rows.push([MONTHS[m],day,cat.name,tk.name,pr?pr.label:"",ch[day+":"+cat.id+":"+tk.id]?"Yes":"No"]);
+          });
+        });
+      });
+    });
+  }
+  dlCSV(rows,"lifeplanner-"+dashY+".csv");
+}
+
 
 // ── PIN ────────────────────────────────────────────────────────────────────────
 const CORRECT_PIN="6452";
