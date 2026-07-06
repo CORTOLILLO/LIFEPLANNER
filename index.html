@@ -1261,9 +1261,10 @@ document.addEventListener("click",function(e){
   if(a==="save-task"){
     const name=(document.getElementById("mtask_name")||{}).value||"";
     if(!name.trim()){alert("Please enter a task name.");return;}
-    const fd=document.getElementById("mtask_date");if(fd)mFreq.date=parseInt(fd.value);
-    const fm=document.getElementById("mtask_month");if(fm)mFreq.month=parseInt(fm.value);
-    const fy=document.getElementById("mtask_year");if(fy)mFreq.year=parseInt(fy.value);
+    const fd=document.getElementById("mtask_date");if(fd)mFreq.date=parseInt(fd.value)||new Date().getDate();
+    const fm=document.getElementById("mtask_month");if(fm)mFreq.month=parseInt(fm.value);else if(mFreq.type==="once")mFreq.month=new Date().getMonth();
+    const fy=document.getElementById("mtask_year");if(fy)mFreq.year=parseInt(fy.value)||new Date().getFullYear();
+    console.log("saving task freq:",JSON.stringify(mFreq));
     const rollover=!!(document.getElementById("mtask_rollover")||{}).checked;
     const url=((document.getElementById("mtask_url")||{}).value||"").trim();
     const startTime=((document.getElementById("mtask_start")||{}).value||"").trim();
