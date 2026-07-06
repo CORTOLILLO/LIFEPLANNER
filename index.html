@@ -274,11 +274,11 @@ const ls={
 };
 
 function getCats(){return _cats}
-function saveCats(c){_cats=c;sbSet("categories",c);}
+function saveCats(c){_cats=c;ls.set("cats_backup",c);sbSet("categories",c);}
 
 async function loadFromSupabase(){
   const cats=await sbGet("categories");
-  _cats=(cats&&Array.isArray(cats))?cats:[];
+  _cats=(cats&&Array.isArray(cats))?cats:(ls.get("cats_backup")||[]);
   const cu=await sbGet("custom_data");
   _custom=(cu&&typeof cu==="object")?cu:{};
   const allChecks=await sbGet("all_checks");
@@ -344,11 +344,14 @@ function fApplies(f,di){
   }
   if(f.type==="once"){
     if(!f.date||f.month===undefined||!f.year) return false;
-    // Build the date string for this specific day
-    const wkParts=wkKey(wkOff).split("-");
-    const wkSun=new Date(parseInt(wkParts[0]),parseInt(wkParts[1])-1,parseInt(wkParts[2]));
-    const thisDay=new Date(wkSun.getFullYear(),wkSun.getMonth(),wkSun.getDate()+di);
-    return thisDay.getFullYear()===f.year&&thisDay.getMonth()===f.month&&thisDay.getDate()===f.date;
+    // Compute actual calendar date for this day slot
+    const now=new Date();
+    const todayDi=now.getDay();
+    const todayMs=now.getTime();
+    const diffDays=di-todayDi+(wkOff*7);
+    const targetMs=todayMs+diffDays*86400000;
+    const target=new Date(targetMs);
+    return target.getFullYear()===f.year&&target.getMonth()===f.month&&target.getDate()===f.date;
   }
   return false;
 }
@@ -1264,7 +1267,6 @@ document.addEventListener("click",function(e){
     const fd=document.getElementById("mtask_date");if(fd)mFreq.date=parseInt(fd.value)||new Date().getDate();
     const fm=document.getElementById("mtask_month");if(fm)mFreq.month=parseInt(fm.value);else if(mFreq.type==="once")mFreq.month=new Date().getMonth();
     const fy=document.getElementById("mtask_year");if(fy)mFreq.year=parseInt(fy.value)||new Date().getFullYear();
-    console.log("saving task freq:",JSON.stringify(mFreq));
     const rollover=!!(document.getElementById("mtask_rollover")||{}).checked;
     const url=((document.getElementById("mtask_url")||{}).value||"").trim();
     const startTime=((document.getElementById("mtask_start")||{}).value||"").trim();
