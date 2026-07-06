@@ -344,11 +344,13 @@ function fApplies(f,di){
   }
   if(f.type==="once"){
     if(!f.date||f.month===undefined||!f.year) return false;
-    const now=new Date();
-    const todayDi=now.getDay();
-    const diffDays=di-todayDi+(wkOff*7);
-    const target=new Date(now.getFullYear(),now.getMonth(),now.getDate()+diffDays);
-    return target.getFullYear()===f.year&&target.getMonth()===f.month&&target.getDate()===f.date;
+    // Build YYYY-MM-DD string for the task date
+    const taskDateStr=f.year+"-"+String(f.month+1).padStart(2,"0")+"-"+String(f.date).padStart(2,"0");
+    // Build YYYY-MM-DD string for the day slot being rendered
+    const wkParts=wkKey(wkOff).split("-");
+    const slotDate=new Date(parseInt(wkParts[0]),parseInt(wkParts[1])-1,parseInt(wkParts[2])+di);
+    const slotDateStr=slotDate.getFullYear()+"-"+String(slotDate.getMonth()+1).padStart(2,"0")+"-"+String(slotDate.getDate()).padStart(2,"0");
+    return taskDateStr===slotDateStr;
   }
   return false;
 }
@@ -1284,7 +1286,6 @@ document.addEventListener("click",function(e){
         mFreq.month=now.getMonth();
         mFreq.date=now.getDate();
       }
-      alert("Saving once task: y="+mFreq.year+" m="+mFreq.month+" d="+mFreq.date);
     } else {
       const fd=document.getElementById("mtask_date");if(fd)mFreq.date=parseInt(fd.value)||new Date().getDate();
       const fm=document.getElementById("mtask_month");if(fm)mFreq.month=parseInt(fm.value);
