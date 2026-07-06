@@ -344,11 +344,11 @@ function fApplies(f,di){
   }
   if(f.type==="once"){
     if(!f.date||f.month===undefined||!f.year) return false;
-    const target=new Date(f.year,f.month,f.date);
-    const now=new Date();
-    const weekStart=new Date(now);weekStart.setDate(now.getDate()-now.getDay()+wkOff*7);weekStart.setHours(0,0,0,0);
-    const weekEnd=new Date(weekStart);weekEnd.setDate(weekStart.getDate()+6);weekEnd.setHours(23,59,59,999);
-    return target>=weekStart&&target<=weekEnd&&target.getDay()===di;
+    // Build the date string for this specific day
+    const wkParts=wkKey(wkOff).split("-");
+    const wkSun=new Date(parseInt(wkParts[0]),parseInt(wkParts[1])-1,parseInt(wkParts[2]));
+    const thisDay=new Date(wkSun.getFullYear(),wkSun.getMonth(),wkSun.getDate()+di);
+    return thisDay.getFullYear()===f.year&&thisDay.getMonth()===f.month&&thisDay.getDate()===f.date;
   }
   return false;
 }
