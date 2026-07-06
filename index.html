@@ -398,6 +398,7 @@ function catProg(cat,day,wk){
   const _sun=parseWk(wk).sunday;
   const _d=new Date(_sun.getFullYear(),_sun.getMonth(),_sun.getDate()+di);
   const _slotStr=_d.getFullYear()+"-"+String(_d.getMonth()+1).padStart(2,"0")+"-"+String(_d.getDate()).padStart(2,"0");
+  if(day===activeDay) alert("cat: "+cat.name+" tasks: "+(cat.tasks?cat.tasks.length:"NULL")+" raw: "+JSON.stringify(cat.tasks&&cat.tasks[0]));
   (cat.tasks||[]).forEach(tk=>{
     const checked=isChk(day+":"+cat.id+":"+tk.id);
     const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di,_slotStr))&&taskCreatedBeforeOrOnDay(tk,wk,day);
