@@ -1343,7 +1343,7 @@ document.addEventListener("click",function(e){
       }
     } else {
       const endDateVal=((document.getElementById("mtask_enddate")||{}).value||"").trim();
-      cat.tasks.push({id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover,url,startTime,endTime,priority,endDate:endDateVal||undefined,createdAt:new Date().toISOString().split("T")[0]});
+      cat.tasks.push({id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover,url,startTime,endTime,priority,endDate:endDateVal||undefined,createdAt:(()=>{const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");})()});
     }
     saveCats(cats);closeModal();
     renderMain();return;
