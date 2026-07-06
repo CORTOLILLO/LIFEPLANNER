@@ -1529,7 +1529,11 @@ async function boot(){
     pinUnlocked=true;
     document.getElementById("pin-screen").style.display="none";
     document.getElementById("header").style.display="";
-    initCats();render();
+    // DEBUG
+  const mealCat=(_cats||[]).find(c=>c.name==="MEAL PLAN");
+  if(mealCat) alert("BOOT: mealplan tasks="+mealCat.tasks.length+" last="+JSON.stringify(mealCat.tasks[mealCat.tasks.length-1]));
+  else alert("BOOT: no meal plan cat found. cats="+JSON.stringify((_cats||[]).map(c=>c.name)));
+  initCats();render();
   } else {
     document.getElementById("pin-screen").style.display="flex";
     document.getElementById("header").style.display="none";
