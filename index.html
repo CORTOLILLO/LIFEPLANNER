@@ -326,13 +326,12 @@ function onceTaskMatchesDay(tk, wk, day){
   if(!tk.freq||tk.freq.type!=="once") return false;
   const f=tk.freq;
   if(!f.date||f.month===undefined||!f.year) return false;
-  // Build date string from task freq (month is 0-indexed)
   const taskStr=f.year+"-"+String(f.month+1).padStart(2,"0")+"-"+String(f.date).padStart(2,"0");
-  // Build date string for the day being rendered
   const{sunday}=parseWk(wk);
   const di=DAYS.indexOf(day);
   const d=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+di);
   const dayStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  alert("once: task="+taskStr+" day="+dayStr+" match="+(taskStr===dayStr));
   return taskStr===dayStr;
 }
 function fApplies(f,di,slotDateStr){
