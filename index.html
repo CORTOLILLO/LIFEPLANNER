@@ -344,13 +344,10 @@ function fApplies(f,di){
   }
   if(f.type==="once"){
     if(!f.date||f.month===undefined||!f.year) return false;
-    // Compute actual calendar date for this day slot
     const now=new Date();
     const todayDi=now.getDay();
-    const todayMs=now.getTime();
     const diffDays=di-todayDi+(wkOff*7);
-    const targetMs=todayMs+diffDays*86400000;
-    const target=new Date(targetMs);
+    const target=new Date(now.getFullYear(),now.getMonth(),now.getDate()+diffDays);
     return target.getFullYear()===f.year&&target.getMonth()===f.month&&target.getDate()===f.date;
   }
   return false;
@@ -443,26 +440,27 @@ function renderHeader(){
   const dt=document.getElementById("day-tabs");
   dt.style.display=(view==="day"||view==="schedule"||view==="priorities")?"flex":"none";
   dt.innerHTML="";
-  if(view==="day"||view==="priorities"){
-    DAYS.forEach(d=>{
-      const{done,total}=dayProg(d,wk);
-      const pct=total?Math.round((done/total)*100):0;
+  if(view==="day"||view==="priorities"||view==="schedule"){
+    const{sunday}=parseWk(wk);
+    DAYS.forEach((d,di)=>{
+      const dayDate=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+di);
+      const dateStr=(dayDate.getMonth()+1)+"/"+dayDate.getDate();
       const isT=d===todayName()&&wkOff===0,isA=d===activeDay;
       const b=document.createElement("button");
       b.className="dtab"+(isA?" active":"")+(isT?" today":"");
       b.dataset.action="day-"+d;
-      b.innerHTML='<div class="dtab-name">'+d.slice(0,3).toUpperCase()+"</div>"+
-        (isT?'<div class="dtab-today">TODAY</div>':"")+
-        (total>0?'<div class="ring" style="background:conic-gradient(#B7A996 '+pct+'%,rgba(245,242,236,.15) 0)"><div class="ring-in">'+pct+'%</div></div>':'<div style="height:30px"></div>');
-      dt.appendChild(b);
-    });
-  } else if(view==="schedule"){
-    DAYS.forEach(d=>{
-      const isT=d===todayName()&&wkOff===0,isA=d===activeDay;
-      const b=document.createElement("button");
-      b.className="dtab"+(isA?" active":"")+(isT?" today":"");
-      b.dataset.action="day-"+d;
-      b.innerHTML='<div class="dtab-name">'+d.slice(0,3).toUpperCase()+"</div>"+(isT?'<div class="dtab-today">TODAY</div>':'<div style="height:16px"></div>');
+      if(view==="day"||view==="priorities"){
+        const{done,total}=dayProg(d,wk);
+        const pct=total?Math.round((done/total)*100):0;
+        b.innerHTML='<div class="dtab-name">'+d.slice(0,3).toUpperCase()+'</div>'
+          +'<div style="font-size:8px;opacity:.5;margin-bottom:1px;letter-spacing:.3px">'+dateStr+'</div>'
+          +(isT?'<div class="dtab-today">TODAY</div>':"")
+          +(total>0?'<div class="ring" style="background:conic-gradient(#B7A996 '+pct+'%,rgba(245,242,236,.15) 0)"><div class="ring-in">'+pct+'%</div></div>':'<div style="height:30px"></div>');
+      } else {
+        b.innerHTML='<div class="dtab-name">'+d.slice(0,3).toUpperCase()+'</div>'
+          +'<div style="font-size:8px;opacity:.5;margin-bottom:1px;letter-spacing:.3px">'+dateStr+'</div>'
+          +(isT?'<div class="dtab-today">TODAY</div>':'<div style="height:16px"></div>');
+      }
       dt.appendChild(b);
     });
   }
@@ -485,7 +483,10 @@ function buildDay(){
   const day=activeDay,di=DAYS.indexOf(day),cats=getCats()||[];
   const wk=wkKey(),ch=chks(),c=cu();
   if(!cats.length) return emptyPlanner();
-  let h='<div class="dv-top"><div><div class="dv-title">'+day+"</div></div>"
+  let h='<div class="dv-top"><div><div class="dv-title">'+day+"</div>"+
+    '<div style="font-size:11px;opacity:.45;letter-spacing:.5px;margin-top:2px;color:var(--walnut)">'+
+    (()=>{const now=new Date();const di=DAYS.indexOf(day);const todayDi=now.getDay();const diff=di-todayDi+(wkOff*7);const d=new Date(now.getFullYear(),now.getMonth(),now.getDate()+diff);return (d.getMonth()+1)+"/"+d.getDate();})()
+    +"</div></div>"
     +'<div style="display:flex;gap:6px">'
     
     +'<button class="exp-btn" data-action="export-week">&#x2B07; EXPORT</button>'
@@ -1002,7 +1003,10 @@ function modalTask(catId,taskId){
     +'<input type="checkbox" id="mtask_rollover" '+(task.rollover?"checked":"")+' style="width:20px;height:20px;cursor:pointer;accent-color:var(--walnut)">'
     +'<div><div style="font-size:13px;font-weight:500;color:var(--mocha)">Roll over if not completed</div>'
     +'<div style="font-size:11px;opacity:.5;margin-top:2px">Task will carry forward to the next day</div></div>'
-    +'</div>';
+    +'</div>'
+    +'<div class="mo-lbl">End Date (optional)</div>'
+    +'<input class="mo-inp" type="date" id="mtask_enddate" value="'+(task.endDate||'')+'" style="font-family:Jost,sans-serif;font-size:14px">'
+    +'<div style="font-size:11px;opacity:.4;margin-top:6px">Task stops appearing after this date.</div>';
   if(taskId){
     const otherCats=cats.filter(c=>c.id!==catId&&!c.isHabits);
     if(otherCats.length>0){
@@ -1050,15 +1054,11 @@ function getActiveRolloverDate(tk,cat){
 
 function taskCreatedBeforeOrOnDay(tk,wk,day){
   if(!tk.createdAt) return true;
-  if(tk.deletedAfter){
-    const{sunday}=parseWk(wk);const di=DAYS.indexOf(day);
-    const d=new Date(sunday);d.setDate(sunday.getDate()+di);
-    const dateStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-    if(dateStr>=tk.deletedAfter) return false;
-  }
   const{sunday}=parseWk(wk);const di=DAYS.indexOf(day);
   const d=new Date(sunday);d.setDate(sunday.getDate()+di);
   const dateStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  if(tk.deletedAfter&&dateStr>=tk.deletedAfter) return false;
+  if(tk.endDate&&dateStr>tk.endDate) return false;
   return tk.createdAt<=dateStr;
 }
 
@@ -1090,11 +1090,12 @@ function freqExtra(f,pfx){
   }
   if(f.type==="once"){
     const now=new Date();
-    return'<div class="mo-lbl">Date</div><div class="mrow">'
-      +'<select class="mo-inp sm" id="'+pfx+'_month">'+MONTHS.map((m,i)=>'<option value="'+i+'"'+((f.month!==undefined?f.month:now.getMonth())===i?" selected":"")+">"+m+"</option>").join("")+"</select>"
-      +'<input class="mo-inp sm" type="number" min="1" max="31" value="'+(f.date||now.getDate())+'" id="'+pfx+'_date">'
-      +'</div><div class="mo-lbl">Year</div>'
-      +'<input class="mo-inp sm" type="number" min="2024" max="2099" value="'+(f.year||now.getFullYear())+'" id="'+pfx+'_year" style="width:120px">';
+    const yr=f.year||now.getFullYear();
+    const mo=String((f.month!==undefined?f.month:now.getMonth())+1).padStart(2,"0");
+    const dy=String(f.date||now.getDate()).padStart(2,"0");
+    const val=yr+"-"+mo+"-"+dy;
+    return'<div class="mo-lbl">Date</div>'
+      +'<input class="mo-inp" type="date" id="'+pfx+'_datepicker" value="'+val+'" style="font-family:Jost,sans-serif;font-size:14px">';
   }
   return "";
 }
@@ -1209,9 +1210,14 @@ document.addEventListener("click",function(e){
     if(!name.trim()){alert("Please enter a category name.");return;}
     const icon=document.querySelector(".ichip.active")?.dataset.iconPick||"✅";
     const color=parseInt(document.querySelector(".csw.active")?.dataset.colorPick||"0");
-    const fd=document.getElementById("mcat_date");if(fd)mFreq.date=parseInt(fd.value);
-    const fm=document.getElementById("mcat_month");if(fm)mFreq.month=parseInt(fm.value);
-    const fy=document.getElementById("mcat_year");if(fy)mFreq.year=parseInt(fy.value);
+    if(mFreq.type==="once"){
+      const dp=document.getElementById("mcat_datepicker");
+      if(dp&&dp.value){const parts=dp.value.split("-");mFreq.year=parseInt(parts[0]);mFreq.month=parseInt(parts[1])-1;mFreq.date=parseInt(parts[2]);}
+    } else {
+      const fd=document.getElementById("mcat_date");if(fd)mFreq.date=parseInt(fd.value);
+      const fm=document.getElementById("mcat_month");if(fm)mFreq.month=parseInt(fm.value);
+      const fy=document.getElementById("mcat_year");if(fy)mFreq.year=parseInt(fy.value);
+    }
     const cats=getCats()||[];
     if(mCatId){const cat=cats.find(c=>c.id===mCatId);if(cat){cat.name=name.trim().toUpperCase();cat.icon=icon;cat.color=color;cat.freq=Object.assign({},mFreq);}}
     else{cats.push({id:"cat_"+Date.now(),name:name.trim().toUpperCase(),icon,color,freq:Object.assign({},mFreq),tasks:[]});}
@@ -1264,9 +1270,26 @@ document.addEventListener("click",function(e){
   if(a==="save-task"){
     const name=(document.getElementById("mtask_name")||{}).value||"";
     if(!name.trim()){alert("Please enter a task name.");return;}
-    const fd=document.getElementById("mtask_date");if(fd)mFreq.date=parseInt(fd.value)||new Date().getDate();
-    const fm=document.getElementById("mtask_month");if(fm)mFreq.month=parseInt(fm.value);else if(mFreq.type==="once")mFreq.month=new Date().getMonth();
-    const fy=document.getElementById("mtask_year");if(fy)mFreq.year=parseInt(fy.value)||new Date().getFullYear();
+    if(mFreq.type==="once"){
+      const dp=document.getElementById("mtask_datepicker");
+      if(dp&&dp.value){
+        const parts=dp.value.split("-");
+        mFreq.year=parseInt(parts[0]);
+        mFreq.month=parseInt(parts[1])-1;
+        mFreq.date=parseInt(parts[2]);
+      } else {
+        // fallback to today if date picker empty (iOS issue)
+        const now=new Date();
+        mFreq.year=now.getFullYear();
+        mFreq.month=now.getMonth();
+        mFreq.date=now.getDate();
+      }
+      alert("Saving once task: y="+mFreq.year+" m="+mFreq.month+" d="+mFreq.date);
+    } else {
+      const fd=document.getElementById("mtask_date");if(fd)mFreq.date=parseInt(fd.value)||new Date().getDate();
+      const fm=document.getElementById("mtask_month");if(fm)mFreq.month=parseInt(fm.value);
+      const fy=document.getElementById("mtask_year");if(fy)mFreq.year=parseInt(fy.value)||new Date().getFullYear();
+    }
     const rollover=!!(document.getElementById("mtask_rollover")||{}).checked;
     const url=((document.getElementById("mtask_url")||{}).value||"").trim();
     const startTime=((document.getElementById("mtask_start")||{}).value||"").trim();
@@ -1278,11 +1301,13 @@ document.addEventListener("click",function(e){
     if(mTaskId){
       const tk=cat.tasks.find(t=>t.id===mTaskId);
       if(tk){
-        tk.name=name.trim();tk.freq=Object.assign({},mFreq);tk.rollover=rollover;tk.url=url;tk.startTime=startTime;tk.endTime=endTime;tk.priority=priority;
+        const endDateVal2=((document.getElementById("mtask_enddate")||{}).value||"").trim();
+        tk.name=name.trim();tk.freq=Object.assign({},mFreq);tk.rollover=rollover;tk.url=url;tk.startTime=startTime;tk.endTime=endTime;tk.priority=priority;tk.endDate=endDateVal2||undefined;
         if(moveToCat){cat.tasks=cat.tasks.filter(t=>t.id!==mTaskId);const newCat=cats.find(c=>c.id===moveToCat);if(newCat)newCat.tasks.push(tk);}
       }
     } else {
-      cat.tasks.push({id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover,url,startTime,endTime,priority,createdAt:new Date().toISOString().split("T")[0]});
+      const endDateVal=((document.getElementById("mtask_enddate")||{}).value||"").trim();
+      cat.tasks.push({id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover,url,startTime,endTime,priority,endDate:endDateVal||undefined,createdAt:new Date().toISOString().split("T")[0]});
     }
     saveCats(cats);closeModal();
     renderMain();return;
