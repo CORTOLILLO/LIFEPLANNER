@@ -1504,24 +1504,49 @@ function migrateLegacyChecks(){
   });
 }
 
-function exportAll(){
-  const data={};
-  for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);data[k]=ls.get(k);}
+async function exportAll(){
+  // Use in-memory cats (already loaded from Supabase on boot)
+  const cats=_cats||[];
+  const dateStr=(()=>{const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");})();
+  const data={
+    version:2,
+    exported_at:new Date().toISOString(),
+    categories:cats
+  };
   const a=document.createElement("a");
   a.href="data:application/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(data,null,2));
-  a.download="lifeplanner-backup-"+new Date().toISOString().split("T")[0]+".json";a.click();
+  a.download="lifeplanner-backup-"+dateStr+".json";
+  a.click();
 }
 function importAll(){document.getElementById("import-file-input").click();}
-function handleImport(e){
+async function handleImport(e){
   const file=e.target.files[0];if(!file) return;
   const reader=new FileReader();
-  reader.onload=function(ev){
+  reader.onload=async function(ev){
     try{
       const data=JSON.parse(ev.target.result);
-      if(!confirm("This will restore all your data. Continue?")) return;
-      Object.keys(data).forEach(k=>ls.set(k,data[k]));
-      alert("Data restored! Reloading...");location.reload();
-    }catch(err){alert("Could not read file.");}
+      // Support new format (categories) and old localStorage format (planner_cats)
+      const cats=data.categories||data.planner_cats||null;
+      if(!cats||!Array.isArray(cats)||cats.length===0){
+        alert("This backup file doesn't contain valid planner data.");
+        return;
+      }
+      openModal(
+        '<div class="mo-title">Restore Backup</div>'
+        +'<div style="font-size:14px;color:var(--ink);margin-bottom:8px">Found <strong>'+cats.length+'</strong> categories with all their tasks.</div>'
+        +'<div style="font-size:12px;opacity:.5;margin-bottom:24px">This will overwrite your current categories and tasks.</div>'
+        +'<button class="mo-save" id="confirm-import">Restore</button>'
+        +'<button class="mo-cancel" data-action="close-modal">Cancel</button>'
+      );
+      document.getElementById("confirm-import").onclick=async function(){
+        closeModal();
+        await sbSet("categories",cats);
+        _cats=cats;
+        ls.set("cats_backup",cats);
+        alert("Restored "+cats.length+" categories. Reloading...");
+        location.reload();
+      };
+    }catch(err){alert("Could not read file. Make sure it's a valid backup.");}
   };
   reader.readAsText(file);e.target.value="";
 }
