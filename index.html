@@ -320,7 +320,7 @@ function fLabel(f){
   if(f.type==="once") return "Once · "+(f.date?MONTHS[f.month||0]+" "+f.date+", "+(f.year||new Date().getFullYear()):"pick a date");
   return "";
 }
-function fApplies(f,di){
+function fApplies(f,di,slotDateStr){
   if(!f||f.type==="daily") return true;
   if(f.type==="days") return (f.days||[]).includes(di);
   if(f.type==="weekly") return di===(f.day||0);
@@ -344,13 +344,13 @@ function fApplies(f,di){
   }
   if(f.type==="once"){
     if(!f.date||f.month===undefined||!f.year) return false;
-    // Build YYYY-MM-DD string for the task date
     const taskDateStr=f.year+"-"+String(f.month+1).padStart(2,"0")+"-"+String(f.date).padStart(2,"0");
-    // Build YYYY-MM-DD string for the day slot being rendered
+    if(slotDateStr) return taskDateStr===slotDateStr;
+    // fallback if no slotDateStr passed
     const wkParts=wkKey(wkOff).split("-");
     const slotDate=new Date(parseInt(wkParts[0]),parseInt(wkParts[1])-1,parseInt(wkParts[2])+di);
-    const slotDateStr=slotDate.getFullYear()+"-"+String(slotDate.getMonth()+1).padStart(2,"0")+"-"+String(slotDate.getDate()).padStart(2,"0");
-    return taskDateStr===slotDateStr;
+    const computed=slotDate.getFullYear()+"-"+String(slotDate.getMonth()+1).padStart(2,"0")+"-"+String(slotDate.getDate()).padStart(2,"0");
+    return taskDateStr===computed;
   }
   return false;
 }
@@ -375,9 +375,13 @@ function catProg(cat,day,wk){
     }));
     return{done,total};
   }
+  // compute actual date string for this day slot
+  const _sun=parseWk(wk).sunday;
+  const _d=new Date(_sun.getFullYear(),_sun.getMonth(),_sun.getDate()+di);
+  const _slotStr=_d.getFullYear()+"-"+String(_d.getMonth()+1).padStart(2,"0")+"-"+String(_d.getDate()).padStart(2,"0");
   (cat.tasks||[]).forEach(tk=>{
     const checked=isChk(day+":"+cat.id+":"+tk.id);
-    const applies=fApplies(tk.freq,di)&&taskCreatedBeforeOrOnDay(tk,wk,day);
+    const applies=fApplies(tk.freq,di,_slotStr)&&taskCreatedBeforeOrOnDay(tk,wk,day);
     if(tk.rollover){
       const activeDate=getActiveRolloverDate(tk,cat);
       if(activeDate){
@@ -545,7 +549,10 @@ function buildDay(){
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
       if(skipped&&!chk) return;
-      const applies=fApplies(tk.freq,di)&&taskCreatedBeforeOrOnDay(tk,wk,day);
+      const _wkSun2=parseWk(wk).sunday;
+      const _dd2=new Date(_wkSun2.getFullYear(),_wkSun2.getMonth(),_wkSun2.getDate()+di);
+      const _slotStr2=_dd2.getFullYear()+"-"+String(_dd2.getMonth()+1).padStart(2,"0")+"-"+String(_dd2.getDate()).padStart(2,"0");
+      const applies=fApplies(tk.freq,di,_slotStr2)&&taskCreatedBeforeOrOnDay(tk,wk,day);
       if(tk.rollover){
         const activeDate=getActiveRolloverDate(tk,cat);
         const wkParts=wk.split("-");
