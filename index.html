@@ -484,7 +484,7 @@ function buildDay(){
   if(!cats.length) return emptyPlanner();
   let h='<div class="dv-top"><div><div class="dv-title">'+day+"</div></div>"
     +'<div style="display:flex;gap:6px">'
-    +'<button class="exp-btn" style="background:#999;font-size:9px" data-action="debug">🔍 DEBUG</button>'
+    
     +'<button class="exp-btn" data-action="export-week">&#x2B07; EXPORT</button>'
     +'</div></div>';
 
@@ -547,13 +547,13 @@ function buildDay(){
         const thisDayDate=new Date(wkSun.getFullYear(),wkSun.getMonth(),wkSun.getDate()+di);
         const thisDayStr=thisDayDate.getFullYear()+"-"+String(thisDayDate.getMonth()+1).padStart(2,"0")+"-"+String(thisDayDate.getDate()).padStart(2,"0");
         if(activeDate){
-          if(thisDayStr===activeDate){h+=fixedRow(cat.id,tk.id,tk.name+(applies?"":" ↻"),chk,p.ac,tk.url);}
-          else if(chk){h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url);}
-        } else if(chk){h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url);}
+          if(thisDayStr===activeDate){h+=fixedRow(cat.id,tk.id,tk.name+(applies?"":" ↻"),chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once");}
+          else if(chk){h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once");}
+        } else if(chk){h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once");}
         return;
       }
-      if(applies){h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url);return;}
-      if(chk) h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url);
+      if(applies){h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once");return;}
+      if(chk) h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once");
     });
     if(!cat.tasks||cat.tasks.filter(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
@@ -583,8 +583,33 @@ function secHdr(cat,done,total,isO){
     +'<span class="chev">&#x203A;</span></button>';
 }
 
-function fixedRow(catId,tkId,name,chk,ac,url){
+function fixedRow(catId,tkId,name,chk,ac,url,isOnce){
   const id="row_"+catId+"_"+tkId;
+  const bs="padding:10px 4px;border-radius:10px;font-size:9px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.5;flex:1;";
+  const cancelBtn='<button data-action="task-flip-cancel" data-row="'+id+'" style="'+bs+'border:1.5px solid var(--greige);background:transparent;color:var(--stone);">✕<br>Cancel</button>';
+  let backContent;
+  if(isOnce){
+    backContent=
+      '<div style="display:flex;gap:6px">'
+      +'<button data-action="edit-task-series" data-cat="'+catId+'" data-task="'+tkId+'" style="'+bs+'border:1.5px solid var(--greige);background:var(--white);color:var(--walnut);">✏️<br>Edit</button>'
+      +'<button data-action="del-task-all" data-cat="'+catId+'" data-task="'+tkId+'" style="'+bs+'border:none;background:#fdf0ee;color:#b85c52;">🗑️<br>Delete</button>'
+      +cancelBtn
+      +'</div>';
+  } else {
+    backContent=
+      '<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.4;margin-bottom:6px;padding:0 2px">Edit</div>'
+      +'<div style="display:flex;gap:6px;margin-bottom:10px">'
+      +'<button data-action="edit-task-today" data-cat="'+catId+'" data-task="'+tkId+'" style="'+bs+'border:1.5px solid var(--greige);background:var(--white);color:var(--walnut);">✏️<br>Today Only</button>'
+      +'<button data-action="edit-task-series" data-cat="'+catId+'" data-task="'+tkId+'" style="'+bs+'border:1.5px solid var(--greige);background:var(--white);color:var(--walnut);">🔁<br>Edit Series</button>'
+      +'</div>'
+      +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.4;margin-bottom:6px;padding:0 2px">Remove</div>'
+      +'<div style="display:flex;gap:6px">'
+      +'<button data-action="del-task-today" data-cat="'+catId+'" data-task="'+tkId+'" style="'+bs+'border:none;background:#fdf0ee;color:#b85c52;">🚫<br>Skip Today</button>'
+      +'<button data-action="del-task-forward" data-cat="'+catId+'" data-task="'+tkId+'" style="'+bs+'border:none;background:#fdf0ee;color:#b85c52;">⏹<br>Stop Here</button>'
+      +'<button data-action="del-task-all" data-cat="'+catId+'" data-task="'+tkId+'" style="'+bs+'border:none;background:#fdf0ee;color:#b85c52;">🗑️<br>Delete All</button>'
+      +cancelBtn
+      +'</div>';
+  }
   return '<div class="task-row" id="'+id+'" data-cat="'+catId+'" data-task="'+tkId+'" style="margin-bottom:10px">'
     +'<div class="task-front crow" style="margin-bottom:0">'
     +'<button class="cbtn'+(chk?" chk":" hv")+'" style="'+(chk?"background:"+ac+";border-color:"+ac:"border-color:"+ac)+'" data-action="check" data-cat="'+catId+'" data-tk="'+tkId+'">'+(chk?"&#x2713;":"")+"</button>"
@@ -592,17 +617,8 @@ function fixedRow(catId,tkId,name,chk,ac,url){
     +(url?'<a href="'+esc(url)+'" target="_blank" rel="noopener" style="font-size:16px;text-decoration:none;opacity:.5;flex-shrink:0" onclick="event.stopPropagation()">🔗</a>':"")
     +'</div>'
     +'<div class="task-back" style="display:none;padding:8px 0 2px">'
-    +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.4;margin-bottom:6px;padding:0 2px">Edit</div>'
-    +'<div style="display:flex;gap:6px;margin-bottom:10px">'
-    +'<button data-action="edit-task-series" data-cat="'+catId+'" data-task="'+tkId+'" style="flex:1;padding:10px 4px;border-radius:10px;border:1.5px solid var(--greige);background:var(--white);color:var(--walnut);font-size:9px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.5">🔁<br>Edit Series</button>'
-    +'</div>'
-    +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.4;margin-bottom:6px;padding:0 2px">Remove</div>'
-    +'<div style="display:flex;gap:6px">'
-    +'<button data-action="del-task-today" data-cat="'+catId+'" data-task="'+tkId+'" style="flex:1;padding:10px 4px;border-radius:10px;border:none;background:#fdf0ee;color:#b85c52;font-size:9px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.5">🚫<br>Skip Today</button>'
-    +'<button data-action="del-task-forward" data-cat="'+catId+'" data-task="'+tkId+'" style="flex:1;padding:10px 4px;border-radius:10px;border:none;background:#fdf0ee;color:#b85c52;font-size:9px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.5">⏹<br>Stop Here</button>'
-    +'<button data-action="del-task-all" data-cat="'+catId+'" data-task="'+tkId+'" style="flex:1;padding:10px 4px;border-radius:10px;border:none;background:#fdf0ee;color:#b85c52;font-size:9px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.5">🗑️<br>Delete All</button>'
-    +'<button data-action="task-flip-cancel" data-row="'+id+'" style="flex:1;padding:10px 4px;border-radius:10px;border:1.5px solid var(--greige);background:transparent;color:var(--stone);font-size:9px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.5">✕<br>Cancel</button>'
-    +'</div>'
+    +'<div style="font-size:13px;font-weight:500;color:var(--mocha);margin-bottom:10px;padding:0 2px;font-family:\'Cormorant Garamond\',serif;font-style:italic">'+esc(name)+'</div>'
+    +backContent
     +'</div>'
     +'</div>';
 }
@@ -1049,10 +1065,11 @@ function freqUI(pfx,isCat){
   if(isCat) types.push(["task-days","Task Days Only"]);
   let h='<div class="fgrid" id="'+pfx+'_fbtns">';
   types.forEach(([t,l])=>{h+='<button class="fbtn'+(f.type===t?" active":"")+'" data-freq-type="'+t+'">'+l+"</button>";});
-  h+='</div><div id="'+pfx+'_fextra" style="margin-top:12px">'+freqExtra(f)+"</div>";
+  h+='</div><div id="'+pfx+'_fextra" style="margin-top:12px">'+freqExtra(f,pfx)+"</div>";
   return h;
 }
-function freqExtra(f){
+function freqExtra(f,pfx){
+  pfx=pfx||'freq';
   if(f.type==="days"){
     return'<div class="dgrid">'+DAYS.map((d,i)=>'<button class="dchip'+((f.days||[]).includes(i)?" active":"")+'" data-day-pick="'+i+'">'+d.slice(0,3)+"</button>").join("")+"</div>";
   }
@@ -1060,41 +1077,45 @@ function freqExtra(f){
     return'<div class="mo-lbl">Which day?</div><div class="dgrid">'+DAYS.map((d,i)=>'<button class="dchip'+((f.day||0)===i?" active":"")+'" data-weekday-pick="'+i+'">'+d.slice(0,3)+"</button>").join("")+"</div>";
   }
   if(f.type==="monthly"){
-    return'<div class="mo-lbl">Day of month</div><input class="mo-inp sm" type="number" min="1" max="31" value="'+(f.date||1)+'" id="freq_date" style="width:100px">';
+    return'<div class="mo-lbl">Day of month</div><input class="mo-inp sm" type="number" min="1" max="31" value="'+(f.date||1)+'" id="'+pfx+'_date" style="width:100px">';
   }
   if(f.type==="annually"){
     return'<div class="mo-lbl">Month and Day</div><div class="mrow">'
-      +'<select class="mo-inp sm" id="freq_month">'+MONTHS.map((m,i)=>'<option value="'+i+'"'+((f.month||0)===i?" selected":"")+">"+m+"</option>").join("")+"</select>"
-      +'<input class="mo-inp sm" type="number" min="1" max="31" value="'+(f.date||1)+'" id="freq_date">'
+      +'<select class="mo-inp sm" id="'+pfx+'_month">'+MONTHS.map((m,i)=>'<option value="'+i+'"'+((f.month||0)===i?" selected":"")+">"+m+"</option>").join("")+"</select>"
+      +'<input class="mo-inp sm" type="number" min="1" max="31" value="'+(f.date||1)+'" id="'+pfx+'_date">'
       +"</div>";
   }
   if(f.type==="once"){
     const now=new Date();
     return'<div class="mo-lbl">Date</div><div class="mrow">'
-      +'<select class="mo-inp sm" id="freq_month">'+MONTHS.map((m,i)=>'<option value="'+i+'"'+((f.month!==undefined?f.month:now.getMonth())===i?" selected":"")+">"+m+"</option>").join("")+"</select>"
-      +'<input class="mo-inp sm" type="number" min="1" max="31" value="'+(f.date||now.getDate())+'" id="freq_date">'
+      +'<select class="mo-inp sm" id="'+pfx+'_month">'+MONTHS.map((m,i)=>'<option value="'+i+'"'+((f.month!==undefined?f.month:now.getMonth())===i?" selected":"")+">"+m+"</option>").join("")+"</select>"
+      +'<input class="mo-inp sm" type="number" min="1" max="31" value="'+(f.date||now.getDate())+'" id="'+pfx+'_date">'
       +'</div><div class="mo-lbl">Year</div>'
-      +'<input class="mo-inp sm" type="number" min="2024" max="2099" value="'+(f.year||now.getFullYear())+'" id="freq_year" style="width:120px">';
+      +'<input class="mo-inp sm" type="number" min="2024" max="2099" value="'+(f.year||now.getFullYear())+'" id="'+pfx+'_year" style="width:120px">';
   }
   return "";
 }
 function refreshFreqExtra(){
   ["mcat","mtask"].forEach(pfx=>{
     const el=document.getElementById(pfx+"_fextra");
-    if(el) el.innerHTML=freqExtra(mFreq);
+    if(el) el.innerHTML=freqExtra(mFreq,pfx);
   });
 }
 
-// ── Long press ─────────────────────────────────────────────────────────────────
-let longPressTimer=null;
-document.addEventListener("touchstart",function(e){
+// ── Double tap to flip task row ────────────────────────────────────────────────
+let lastTap={row:null,time:0};
+document.addEventListener("touchend",function(e){
   const row=e.target.closest(".task-row");
   if(!row) return;
   if(e.target.closest(".cbtn")||e.target.closest("a")||e.target.closest(".task-back")) return;
-  longPressTimer=setTimeout(()=>flipRow(row),600);
+  const now=Date.now();
+  if(lastTap.row===row&&now-lastTap.time<350){
+    flipRow(row);
+    lastTap={row:null,time:0};
+  } else {
+    lastTap={row,time:now};
+  }
 },{passive:true});
-document.addEventListener("touchend",function(){if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null;}},{passive:true});
-document.addEventListener("touchmove",function(){if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null;}},{passive:true});
 function flipRow(row){
   const front=row.querySelector(".task-front"),back=row.querySelector(".task-back");
   if(!front||!back) return;front.style.display="none";back.style.display="block";
@@ -1159,7 +1180,6 @@ document.addEventListener("click",function(e){
   if(a==="toggle-sec"){openSec=openSec===btn.dataset.sec?null:btn.dataset.sec;renderMain();return;}
   if(a==="export-all"){exportAll();return;}
   if(a==="import-all"){importAll();return;}
-  if(a==="debug"){showDebug();return;}
   if(a==="export-week"){exportWeek();return;}
   if(a==="export-month"){exportMonth();return;}
   if(a==="dash-prev"){dashM--;if(dashM<0){dashM=11;dashY--;}renderMain();return;}
@@ -1186,9 +1206,9 @@ document.addEventListener("click",function(e){
     if(!name.trim()){alert("Please enter a category name.");return;}
     const icon=document.querySelector(".ichip.active")?.dataset.iconPick||"✅";
     const color=parseInt(document.querySelector(".csw.active")?.dataset.colorPick||"0");
-    const fd=document.getElementById("freq_date");if(fd)mFreq.date=parseInt(fd.value);
-    const fm=document.getElementById("freq_month");if(fm)mFreq.month=parseInt(fm.value);
-    const fy=document.getElementById("freq_year");if(fy)mFreq.year=parseInt(fy.value);
+    const fd=document.getElementById("mcat_date");if(fd)mFreq.date=parseInt(fd.value);
+    const fm=document.getElementById("mcat_month");if(fm)mFreq.month=parseInt(fm.value);
+    const fy=document.getElementById("mcat_year");if(fy)mFreq.year=parseInt(fy.value);
     const cats=getCats()||[];
     if(mCatId){const cat=cats.find(c=>c.id===mCatId);if(cat){cat.name=name.trim().toUpperCase();cat.icon=icon;cat.color=color;cat.freq=Object.assign({},mFreq);}}
     else{cats.push({id:"cat_"+Date.now(),name:name.trim().toUpperCase(),icon,color,freq:Object.assign({},mFreq),tasks:[]});}
@@ -1241,9 +1261,9 @@ document.addEventListener("click",function(e){
   if(a==="save-task"){
     const name=(document.getElementById("mtask_name")||{}).value||"";
     if(!name.trim()){alert("Please enter a task name.");return;}
-    const fd=document.getElementById("freq_date");if(fd)mFreq.date=parseInt(fd.value);
-    const fm=document.getElementById("freq_month");if(fm)mFreq.month=parseInt(fm.value);
-    const fy=document.getElementById("freq_year");if(fy)mFreq.year=parseInt(fy.value);
+    const fd=document.getElementById("mtask_date");if(fd)mFreq.date=parseInt(fd.value);
+    const fm=document.getElementById("mtask_month");if(fm)mFreq.month=parseInt(fm.value);
+    const fy=document.getElementById("mtask_year");if(fy)mFreq.year=parseInt(fy.value);
     const rollover=!!(document.getElementById("mtask_rollover")||{}).checked;
     const url=((document.getElementById("mtask_url")||{}).value||"").trim();
     const startTime=((document.getElementById("mtask_start")||{}).value||"").trim();
@@ -1261,7 +1281,8 @@ document.addEventListener("click",function(e){
     } else {
       cat.tasks.push({id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover,url,startTime,endTime,priority,createdAt:new Date().toISOString().split("T")[0]});
     }
-    saveCats(cats);closeModal();renderMain();return;
+    saveCats(cats);closeModal();
+    renderMain();return;
   }
   if(a==="del-task"||a==="del-task-modal"){
     const cid=a==="del-task-modal"?mCatId:btn.dataset.cat;
@@ -1440,11 +1461,7 @@ function handleImport(e){
   };
   reader.readAsText(file);e.target.value="";
 }
-function showDebug(){
-  const wk=wkKey(),ch=_checks[wk]||{};
-  const trueKeys=Object.keys(ch).filter(k=>ch[k]);
-  alert("Week: "+wk+"\n\nChecked keys ("+trueKeys.length+"):\n"+trueKeys.slice(0,10).join("\n")+(trueKeys.length>10?"\n...":""));
-}
+
 
 async function boot(){
   document.getElementById("main").innerHTML='<div style="text-align:center;padding:100px 30px;opacity:.4"><div style="font-family:Cormorant Garamond,serif;font-size:22px;font-style:italic;color:var(--mocha)">Loading your planner...</div></div>';
