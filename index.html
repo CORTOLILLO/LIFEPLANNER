@@ -331,7 +331,6 @@ function onceTaskMatchesDay(tk, wk, day){
   const di=DAYS.indexOf(day);
   const d=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+di);
   const dayStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-  alert("once: task="+taskStr+" day="+dayStr+" match="+(taskStr===dayStr));
   return taskStr===dayStr;
 }
 function fApplies(f,di,slotDateStr){
@@ -398,7 +397,6 @@ function catProg(cat,day,wk){
   const _sun=parseWk(wk).sunday;
   const _d=new Date(_sun.getFullYear(),_sun.getMonth(),_sun.getDate()+di);
   const _slotStr=_d.getFullYear()+"-"+String(_d.getMonth()+1).padStart(2,"0")+"-"+String(_d.getDate()).padStart(2,"0");
-  if(cat.name==="MEAL PLAN") alert("MEALPLAN day="+day+" tasks="+(cat.tasks?cat.tasks.length:"NULL")+" first="+JSON.stringify(cat.tasks&&cat.tasks[cat.tasks.length-1]));
   (cat.tasks||[]).forEach(tk=>{
     const checked=isChk(day+":"+cat.id+":"+tk.id);
     const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di,_slotStr))&&taskCreatedBeforeOrOnDay(tk,wk,day);
@@ -1082,6 +1080,16 @@ function getActiveRolloverDate(tk,cat){
 }
 
 function taskCreatedBeforeOrOnDay(tk,wk,day){
+  // once tasks always show on their exact date regardless of createdAt
+  if(tk.freq&&tk.freq.type==="once") {
+    if(tk.endDate){
+      const{sunday}=parseWk(wk);const di=DAYS.indexOf(day);
+      const d=new Date(sunday);d.setDate(sunday.getDate()+di);
+      const dateStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+      if(dateStr>tk.endDate) return false;
+    }
+    return true;
+  }
   if(!tk.createdAt) return true;
   const{sunday}=parseWk(wk);const di=DAYS.indexOf(day);
   const d=new Date(sunday);d.setDate(sunday.getDate()+di);
@@ -1529,11 +1537,7 @@ async function boot(){
     pinUnlocked=true;
     document.getElementById("pin-screen").style.display="none";
     document.getElementById("header").style.display="";
-    // DEBUG
-  const mealCat=(_cats||[]).find(c=>c.name==="MEAL PLAN");
-  if(mealCat) alert("BOOT: mealplan tasks="+mealCat.tasks.length+" last="+JSON.stringify(mealCat.tasks[mealCat.tasks.length-1]));
-  else alert("BOOT: no meal plan cat found. cats="+JSON.stringify((_cats||[]).map(c=>c.name)));
-  initCats();render();
+    initCats();render();
   } else {
     document.getElementById("pin-screen").style.display="flex";
     document.getElementById("header").style.display="none";
