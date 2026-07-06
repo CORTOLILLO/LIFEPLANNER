@@ -1688,21 +1688,26 @@ function exportWeek(){
 }
 function exportMonth(){
   const cats=getCats()||[];
-  const allWks=Object.keys(_checks);
-  const mWks=allWks.filter(k=>{const{month,year}=parseWk(k);return month===dashM&&year===dashY;});
-  const rows=[["Week","Day","Category","Task","Priority","Completed"]];
-  mWks.forEach(wk=>{
+  const rows=[["Date","Day","Category","Task","Priority","Completed"]];
+  const daysInMonth=new Date(dashY,dashM+1,0).getDate();
+  for(let date=1;date<=daysInMonth;date++){
+    const d=new Date(dashY,dashM,date);
+    const day=DAYS[d.getDay()];
+    const di=d.getDay();
+    const sun=new Date(dashY,dashM,date-di);
+    const wk=sun.getFullYear()+"-"+String(sun.getMonth()+1).padStart(2,"0")+"-"+String(sun.getDate()).padStart(2,"0");
     const ch=_checks[wk]||{};
-    DAYS.forEach((day,di)=>cats.forEach(cat=>{
-      if(!catOn(cat,di)||cat.isHabits) return;
+    const dateStr=dashY+"-"+String(dashM+1).padStart(2,"0")+"-"+String(date).padStart(2,"0");
+    cats.forEach(cat=>{
+      if(cat.isHabits) return;
       (cat.tasks||[]).forEach(tk=>{
-        if(fApplies(tk.freq,di)){
-          const pr=PRIORITIES.find(p=>p.id===(tk.priority||4));
-          rows.push([wk,day,cat.name,tk.name,pr?pr.label:"",ch[day+":"+cat.id+":"+tk.id]?"Yes":"No"]);
-        }
+        const applies=tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di);
+        if(!applies||!taskCreatedBeforeOrOnDay(tk,wk,day)) return;
+        const pr=PRIORITIES.find(p=>p.id===(tk.priority||4));
+        rows.push([dateStr,day,cat.name,tk.name,pr?pr.label:"",ch[day+":"+cat.id+":"+tk.id]?"Yes":"No"]);
       });
-    }));
-  });
+    });
+  }
   dlCSV(rows,"life-planner-"+MONTHS[dashM]+"-"+dashY+".csv");
 }
 
