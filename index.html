@@ -320,6 +320,21 @@ function fLabel(f){
   if(f.type==="once") return "Once · "+(f.date?MONTHS[f.month||0]+" "+f.date+", "+(f.year||new Date().getFullYear()):"pick a date");
   return "";
 }
+
+// ── Once task helper ──────────────────────────────────────────────────────────
+function onceTaskMatchesDay(tk, wk, day){
+  if(!tk.freq||tk.freq.type!=="once") return false;
+  const f=tk.freq;
+  if(!f.date||f.month===undefined||!f.year) return false;
+  // Build date string from task freq (month is 0-indexed)
+  const taskStr=f.year+"-"+String(f.month+1).padStart(2,"0")+"-"+String(f.date).padStart(2,"0");
+  // Build date string for the day being rendered
+  const{sunday}=parseWk(wk);
+  const di=DAYS.indexOf(day);
+  const d=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+di);
+  const dayStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  return taskStr===dayStr;
+}
 function fApplies(f,di,slotDateStr){
   if(!f||f.type==="daily") return true;
   if(f.type==="days") return (f.days||[]).includes(di);
@@ -354,10 +369,15 @@ function fApplies(f,di,slotDateStr){
   }
   return false;
 }
-function catOn(cat,di){
+function catOn(cat,di,wk,day){
   if(cat.isHabits) return true;
   const freq=cat.freq||{type:"daily"};
-  if(freq.type==="task-days") return (cat.tasks||[]).some(tk=>fApplies(tk.freq,di));
+  if(freq.type==="task-days"){
+    return (cat.tasks||[]).some(tk=>{
+      if(tk.freq&&tk.freq.type==="once") return wk&&day?onceTaskMatchesDay(tk,wk,day):false;
+      return fApplies(tk.freq,di);
+    });
+  }
   return fApplies(freq,di);
 }
 function ord(n){const s=["th","st","nd","rd"],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])}
@@ -381,7 +401,7 @@ function catProg(cat,day,wk){
   const _slotStr=_d.getFullYear()+"-"+String(_d.getMonth()+1).padStart(2,"0")+"-"+String(_d.getDate()).padStart(2,"0");
   (cat.tasks||[]).forEach(tk=>{
     const checked=isChk(day+":"+cat.id+":"+tk.id);
-    const applies=fApplies(tk.freq,di,_slotStr)&&taskCreatedBeforeOrOnDay(tk,wk,day);
+    const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di,_slotStr))&&taskCreatedBeforeOrOnDay(tk,wk,day);
     if(tk.rollover){
       const activeDate=getActiveRolloverDate(tk,cat);
       if(activeDate){
@@ -401,7 +421,7 @@ function catProg(cat,day,wk){
 function dayProg(day,wk){
   let done=0,total=0;
   (getCats()||[]).forEach(cat=>{
-    if(!catOn(cat,DAYS.indexOf(day))) return;
+    if(!catOn(cat,DAYS.indexOf(day),wk,day)) return;
     const p=catProg(cat,day,wk);done+=p.done;total+=p.total;
   });
   return{done,total};
@@ -498,7 +518,7 @@ function buildDay(){
     +'<button class="exp-btn" data-action="export-week">&#x2B07; EXPORT</button>'
     +'</div></div>';
 
-  const activeCats=cats.filter(cat=>catOn(cat,di));
+  const activeCats=cats.filter(cat=>catOn(cat,di,wk,activeDay));
   const incomplete=[],empty=[],complete=[];
   activeCats.forEach(cat=>{
     const p=catProg(cat,day,wk);
@@ -552,7 +572,7 @@ function buildDay(){
       const _wkSun2=parseWk(wk).sunday;
       const _dd2=new Date(_wkSun2.getFullYear(),_wkSun2.getMonth(),_wkSun2.getDate()+di);
       const _slotStr2=_dd2.getFullYear()+"-"+String(_dd2.getMonth()+1).padStart(2,"0")+"-"+String(_dd2.getDate()).padStart(2,"0");
-      const applies=fApplies(tk.freq,di,_slotStr2)&&taskCreatedBeforeOrOnDay(tk,wk,day);
+      const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di,_slotStr2))&&taskCreatedBeforeOrOnDay(tk,wk,day);
       if(tk.rollover){
         const activeDate=getActiveRolloverDate(tk,cat);
         const wkParts=wk.split("-");
@@ -677,7 +697,7 @@ function buildPriorities(){
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
       if(skipped&&!chk) return;
-      const applies=fApplies(tk.freq,di)&&taskCreatedBeforeOrOnDay(tk,wk,day);
+      const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di))&&taskCreatedBeforeOrOnDay(tk,wk,day);
 
       let show=applies;
       if(tk.rollover){
@@ -753,7 +773,7 @@ function buildSchedule(){
     if(!catOn(cat,di)||cat.isHabits) return;
     (cat.tasks||[]).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
-      const applies=fApplies(tk.freq,di)&&taskCreatedBeforeOrOnDay(tk,wk,day);
+      const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di))&&taskCreatedBeforeOrOnDay(tk,wk,day);
       let show=applies;
       if(tk.rollover){
         const activeDate=getActiveRolloverDate(tk,cat);
