@@ -399,6 +399,8 @@ function catProg(cat,day,wk){
   const _slotStr=_d.getFullYear()+"-"+String(_d.getMonth()+1).padStart(2,"0")+"-"+String(_d.getDate()).padStart(2,"0");
   (cat.tasks||[]).forEach(tk=>{
     const checked=isChk(day+":"+cat.id+":"+tk.id);
+    const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
+    if(skipped&&!checked) return;
     const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di,_slotStr))&&taskCreatedBeforeOrOnDay(tk,wk,day);
     if(tk.rollover){
       const activeDate=getActiveRolloverDate(tk,cat);
@@ -1674,71 +1676,103 @@ function dlCSV(rows,fn){
   const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\n");
   const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download=fn;a.click();
 }
-function exportWeek(){
-  const wk=wkKey(),cats=getCats()||[];
-  const rows=[["Week","Day","Category","Task","Priority","Completed"]];
-  DAYS.forEach((day,di)=>cats.forEach(cat=>{
-    if(!catOn(cat,di)) return;
-    if(cat.isHabits) return;
+function getTasksForDay(wk,day){
+  const cats=getCats()||[];
+  const di=DAYS.indexOf(day);
+  const ch=_checks[wk]||{};
+  const{sunday}=parseWk(wk);
+  const dayDate=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+di);
+  const dateStr=dayDate.getFullYear()+"-"+String(dayDate.getMonth()+1).padStart(2,"0")+"-"+String(dayDate.getDate()).padStart(2,"0");
+  const rows=[];
+  cats.forEach(cat=>{
+    if(!catOn(cat,di,wk,day)||cat.isHabits) return;
     (cat.tasks||[]).forEach(tk=>{
-      if(fApplies(tk.freq,di)){
-        const pr=PRIORITIES.find(p=>p.id===(tk.priority||4));
-        const ch=_checks[wk]||{};
-        rows.push([wk,day,cat.name,tk.name,pr?pr.label:"",ch[day+":"+cat.id+":"+tk.id]?"Yes":"No"]);
-      }
+      const chk=!!(ch[day+":"+cat.id+":"+tk.id]);
+      const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
+      if(skipped&&!chk) return;
+      const applies=tk.freq&&tk.freq.type==="once"
+        ?onceTaskMatchesDay(tk,wk,day)
+        :fApplies(tk.freq,di);
+      if(!applies&&!chk) return;
+      if(!taskCreatedBeforeOrOnDay(tk,wk,day)) return;
+      const pr=PRIORITIES.find(p=>p.id===(tk.priority||4));
+      rows.push([dateStr,day,cat.name,tk.name,pr?pr.label:"",chk?"Yes":"No"]);
     });
-  }));
+  });
+  return rows;
+}
+function exportWeek(){
+  const wk=wkKey();
+  const{sunday}=parseWk(wk);
+  const end=new Date(sunday);end.setDate(sunday.getDate()+6);
+  const rows=[["Date","Day","Category","Task","Priority","Completed"]];
+  DAYS.forEach((day)=>{
+    const sun=sunday;
+    getTasksForDay(wk,day).forEach(r=>rows.push(r));
+  });
   dlCSV(rows,"life-planner-week-"+wk+".csv");
 }
 function exportMonth(){
-  const cats=getCats()||[];
   const rows=[["Date","Day","Category","Task","Priority","Completed"]];
   const daysInMonth=new Date(dashY,dashM+1,0).getDate();
   for(let date=1;date<=daysInMonth;date++){
     const d=new Date(dashY,dashM,date);
     const day=DAYS[d.getDay()];
-    const di=d.getDay();
-    const sun=new Date(dashY,dashM,date-di);
+    const sun=new Date(dashY,dashM,date-d.getDay());
     const wk=sun.getFullYear()+"-"+String(sun.getMonth()+1).padStart(2,"0")+"-"+String(sun.getDate()).padStart(2,"0");
-    const ch=_checks[wk]||{};
-    const dateStr=dashY+"-"+String(dashM+1).padStart(2,"0")+"-"+String(date).padStart(2,"0");
-    cats.forEach(cat=>{
-      if(cat.isHabits) return;
-      (cat.tasks||[]).forEach(tk=>{
-        const applies=tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di);
-        if(!applies||!taskCreatedBeforeOrOnDay(tk,wk,day)) return;
-        const pr=PRIORITIES.find(p=>p.id===(tk.priority||4));
-        rows.push([dateStr,day,cat.name,tk.name,pr?pr.label:"",ch[day+":"+cat.id+":"+tk.id]?"Yes":"No"]);
-      });
-    });
+    getTasksForDay(wk,day).forEach(r=>rows.push(r));
   }
   dlCSV(rows,"life-planner-"+MONTHS[dashM]+"-"+dashY+".csv");
 }
-
 function exportYear(){
-  const cats=getCats()||[];
-  const rows=[["Month","Day","Category","Task","Priority","Completed"]];
-  const now=new Date();
+  const rows=[["Date","Day","Category","Task","Priority","Completed"]];
   for(let m=0;m<12;m++){
-    Object.keys(_checks).forEach(wk=>{
-      const{sunday}=parseWk(wk);
-      const ch=_checks[wk]||{};
-      DAYS.forEach((day,di)=>{
-        const d=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+di);
-        if(d.getMonth()!==m||d.getFullYear()!==dashY) return;
-        cats.forEach(cat=>{
-          if(cat.isHabits) return;
-          (cat.tasks||[]).forEach(tk=>{
-            const applies=tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di);
-            if(!applies) return;
-            const pr=PRIORITIES.find(p=>p.id===(tk.priority||4));
-            rows.push([MONTHS[m],day,cat.name,tk.name,pr?pr.label:"",ch[day+":"+cat.id+":"+tk.id]?"Yes":"No"]);
-          });
-        });
-      });
-    });
+    const daysInMonth=new Date(dashY,m+1,0).getDate();
+    for(let date=1;date<=daysInMonth;date++){
+      const d=new Date(dashY,m,date);
+      if(d>new Date()) break;
+      const day=DAYS[d.getDay()];
+      const sun=new Date(dashY,m,date-d.getDay());
+      const wk=sun.getFullYear()+"-"+String(sun.getMonth()+1).padStart(2,"0")+"-"+String(sun.getDate()).padStart(2,"0");
+      getTasksForDay(wk,day).forEach(r=>rows.push(r));
+    }
   }
   dlCSV(rows,"lifeplanner-"+dashY+".csv");
+}
+function calcCustomRange(startStr,endStr){
+  const cats=getCats()||[];
+  const start=new Date(startStr);const end=new Date(endStr);
+  let done=0,total=0;
+  const byCatMap={};
+  cats.forEach(c=>{byCatMap[c.id]={name:c.name,icon:c.icon,color:c.color,done:0,total:0};});
+  const cur=new Date(start);
+  while(cur<=end){
+    const day=DAYS[cur.getDay()];
+    const sun=new Date(cur.getFullYear(),cur.getMonth(),cur.getDate()-cur.getDay());
+    const wk=sun.getFullYear()+"-"+String(sun.getMonth()+1).padStart(2,"0")+"-"+String(sun.getDate()).padStart(2,"0");
+    getTasksForDay(wk,day).forEach(r=>{
+      total++;byCatMap[cats.find(c=>c.name===r[2])?.id||""]&&(byCatMap[cats.find(c=>c.name===r[2])?.id||""].total++);
+      if(r[5]==="Yes"){done++;byCatMap[cats.find(c=>c.name===r[2])?.id||""]&&(byCatMap[cats.find(c=>c.name===r[2])?.id||""].done++);}
+    });
+    cur.setDate(cur.getDate()+1);
+  }
+  const pct=total?Math.round(done/total*100):0;
+  const byCat=Object.values(byCatMap).filter(c=>c.total>0);
+  return{done,total,pct,byCat};
+}
+function exportCustom(){
+  if(!customStart||!customEnd) return;
+  const rows=[["Date","Day","Category","Task","Priority","Completed"]];
+  const start=new Date(customStart);const end=new Date(customEnd);
+  const cur=new Date(start);
+  while(cur<=end){
+    const day=DAYS[cur.getDay()];
+    const sun=new Date(cur.getFullYear(),cur.getMonth(),cur.getDate()-cur.getDay());
+    const wk=sun.getFullYear()+"-"+String(sun.getMonth()+1).padStart(2,"0")+"-"+String(sun.getDate()).padStart(2,"0");
+    getTasksForDay(wk,day).forEach(r=>rows.push(r));
+    cur.setDate(cur.getDate()+1);
+  }
+  dlCSV(rows,"lifeplanner-"+customStart+"-to-"+customEnd+".csv");
 }
 
 
