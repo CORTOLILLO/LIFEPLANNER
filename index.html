@@ -269,6 +269,7 @@ let mFreq={},mCatId=null,mTaskId=null,mRoutineId=null;
 let _cats=null,_custom={},_checks={};
 let openRoutine=null; // which routine's task panel is expanded in setup
 let routineSelectTasks=new Set(); // task ids checked in the "Save as Routine" modal
+let customStart=null,customEnd=null,customRangeData=null; // Dashboard "Custom Range" state
 
 const ls={
   get(k,fb=null){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch{return fb}},
@@ -1626,6 +1627,15 @@ document.addEventListener("click",function(e){
   if(a==="export-week"){exportWeek();return;}
   if(a==="export-month"){exportMonth();return;}
   if(a==="export-year"){exportYear();return;}
+  if(a==="custom-range-go"){
+    const s=(document.getElementById("custom_start")||{}).value;
+    const e=(document.getElementById("custom_end")||{}).value;
+    if(!s||!e){alert("Please pick both a start and end date.");return;}
+    customStart=s;customEnd=e;
+    customRangeData=calcCustomRange(s,e);
+    renderSetupSection("dash");return;
+  }
+  if(a==="export-custom"){exportCustom();return;}
   if(a==="dash-prev"){dashM--;if(dashM<0){dashM=11;dashY--;}renderSetupSection("dash");return;}
   if(a==="dash-next"){dashM++;if(dashM>11){dashM=0;dashY++;}renderSetupSection("dash");return;}
   if(a==="dash-year-prev"){dashY--;renderSetupSection("dash");return;}
@@ -1976,7 +1986,14 @@ document.addEventListener("blur",function(e){
 // ── Export ─────────────────────────────────────────────────────────────────────
 function dlCSV(rows,fn){
   const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\n");
-  const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download=fn;a.click();
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download=fn;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 function getTasksForDay(wk,day){
   const cats=getCats()||[];
@@ -2121,10 +2138,15 @@ async function exportAll(){
     exported_at:new Date().toISOString(),
     categories:cats
   };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
-  a.href="data:application/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(data,null,2));
+  a.href=url;
   a.download="lifeplanner-backup-"+dateStr+".json";
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 function importAll(){document.getElementById("import-file-input").click();}
 async function handleImport(e){
