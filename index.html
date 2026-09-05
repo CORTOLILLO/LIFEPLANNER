@@ -265,8 +265,10 @@ async function sbSet(id,data){
 // ── State ──────────────────────────────────────────────────────────────────────
 let mode="planner",view="day",wkOff=0,activeDay=DAYS[new Date().getDay()],openSec=null;
 let dashM=new Date().getMonth(),dashY=new Date().getFullYear();
-let mFreq={},mCatId=null,mTaskId=null;
+let mFreq={},mCatId=null,mTaskId=null,mRoutineId=null;
 let _cats=null,_custom={},_checks={};
+let openRoutine=null; // which routine's task panel is expanded in setup
+let routineSelectTasks=new Set(); // task ids checked in the "Save as Routine" modal
 
 const ls={
   get(k,fb=null){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch{return fb}},
@@ -301,7 +303,6 @@ function parseWk(k){
 function chks(){return _checks[wkKey()]||{}}
 function cu(){return _custom}
 function saveChks(c){const wk=wkKey();_checks[wk]=c;sbSet("all_checks",_checks);}
-function saveCu(c){_custom=c;sbSet("custom_data",c);}
 function toggle(catId,tk){
   const c=chks();const key=activeDay+":"+catId+":"+tk;
   c[key]=!c[key];saveChks(c);renderHeader();renderMain();
@@ -371,7 +372,7 @@ function catOn(cat,di,wk,day){
   if(cat.isHabits) return true;
   const freq=cat.freq||{type:"daily"};
   if(freq.type==="task-days"){
-    return (cat.tasks||[]).some(tk=>{
+    return catAllTasks(cat).some(tk=>{
       if(tk.freq&&tk.freq.type==="once") return wk&&day?onceTaskMatchesDay(tk,wk,day):false;
       return fApplies(tk.freq,di);
     });
@@ -379,6 +380,46 @@ function catOn(cat,di,wk,day){
   return fApplies(freq,di);
 }
 function ord(n){const s=["th","st","nd","rd"],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])}
+
+// ── Routines ───────────────────────────────────────────────────────────────────
+// A routine is a named, saved bundle of tasks (with their own frequencies) that
+// lives inside a category. Only one routine per category can be "active" at a
+// time (cat.activeRoutineId). An active routine's tasks are combined with the
+// category's loose tasks everywhere tasks are shown/counted/exported. An
+// inactive routine's tasks are fully hidden and don't count toward anything,
+// but stay saved untouched until the user edits or deletes them.
+function getActiveRoutine(cat){
+  if(!cat||!cat.routines||!cat.routines.length||!cat.activeRoutineId) return null;
+  return cat.routines.find(r=>r.id===cat.activeRoutineId)||null;
+}
+function catAllTasks(cat){
+  const rt=getActiveRoutine(cat);
+  return (cat.tasks||[]).concat(rt?(rt.tasks||[]):[]);
+}
+// Locate a task among a category's loose tasks or its active routine's tasks.
+// Used for Day/Schedule/Priorities interactions, where only loose + active
+// routine tasks are ever visible.
+function getTaskById(cat,tid){
+  if(!cat) return null;
+  let tk=(cat.tasks||[]).find(t=>t.id===tid);
+  if(tk) return{task:tk,arr:cat.tasks,routine:null};
+  const rt=getActiveRoutine(cat);
+  if(rt){
+    tk=(rt.tasks||[]).find(t=>t.id===tid);
+    if(tk) return{task:tk,arr:rt.tasks,routine:rt};
+  }
+  return null;
+}
+// Like getTaskById, but if a routineId is explicitly known (e.g. from a setup
+// panel managing a specific, possibly-inactive, routine) look there directly.
+function findTaskAndArr(cat,tid,routineId){
+  if(routineId){
+    const rt=(cat.routines||[]).find(r=>r.id===routineId);
+    if(rt){const tk=(rt.tasks||[]).find(t=>t.id===tid);if(tk) return{task:tk,arr:rt.tasks,routine:rt};}
+    return null;
+  }
+  return getTaskById(cat,tid);
+}
 
 // ── Progress ───────────────────────────────────────────────────────────────────
 function catProg(cat,day,wk){
@@ -397,7 +438,7 @@ function catProg(cat,day,wk){
   const _sun=parseWk(wk).sunday;
   const _d=new Date(_sun.getFullYear(),_sun.getMonth(),_sun.getDate()+di);
   const _slotStr=_d.getFullYear()+"-"+String(_d.getMonth()+1).padStart(2,"0")+"-"+String(_d.getDate()).padStart(2,"0");
-  (cat.tasks||[]).forEach(tk=>{
+  catAllTasks(cat).forEach(tk=>{
     const checked=isChk(day+":"+cat.id+":"+tk.id);
     const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
     if(skipped&&!checked) return;
@@ -564,7 +605,7 @@ function buildDay(){
     }
     h+=secHdr(cat,prog.done,prog.total,isO);
     h+='<div class="sec-body">';
-    (cat.tasks||[]).forEach(tk=>{
+    catAllTasks(cat).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
       if(skipped&&!chk) return;
@@ -587,7 +628,7 @@ function buildDay(){
       if(applies){h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once");return;}
       if(chk) h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once");
     });
-    if(!cat.tasks||cat.tasks.filter(tk=>{
+    if(catAllTasks(cat).filter(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       return fApplies(tk.freq,di)||chk||tk.rollover;
     }).length===0){
@@ -692,7 +733,7 @@ function buildPriorities(){
 
   cats.forEach(cat=>{
     if(!catOn(cat,di)||cat.isHabits) return;
-    (cat.tasks||[]).forEach(tk=>{
+    catAllTasks(cat).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
       if(skipped&&!chk) return;
@@ -770,7 +811,7 @@ function buildSchedule(){
   const scheduled=[],unscheduled=[];
   cats.forEach(cat=>{
     if(!catOn(cat,di)||cat.isHabits) return;
-    (cat.tasks||[]).forEach(tk=>{
+    catAllTasks(cat).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di))&&taskCreatedBeforeOrOnDay(tk,wk,day);
       let show=applies;
@@ -952,6 +993,7 @@ function buildSetup(){
         h+='<div style="padding:0 15px 14px">'
           +'<button class="more-btn" data-action="new-task" data-cat="'+cat.id+'">+ Add Task</button>'
           +"</div>";
+        h+=buildRoutinesPanel(cat,p);
       }
       h+="</div>";
     });
@@ -1177,6 +1219,69 @@ function miniBar(label,done,total,pct,color){
 }
 
 
+// ── Routines UI (setup) ────────────────────────────────────────────────────────
+function buildRoutinesPanel(cat,p){
+  const routines=cat.routines||[];
+  let h='<div style="padding:0 15px 14px;border-top:1px solid #F0EDE8;margin-top:2px">'
+    +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.4;margin:14px 0 10px">Routines</div>';
+  if(!routines.length){
+    h+='<div style="font-size:12px;opacity:.4;font-style:italic;margin-bottom:10px">No saved routines yet. Save your current tasks as one below.</div>';
+  }
+  routines.forEach(rt=>{
+    const isActive=cat.activeRoutineId===rt.id;
+    const isOpenR=openRoutine===rt.id;
+    const n=(rt.tasks||[]).length;
+    h+='<div style="background:'+(isActive?"var(--greige)":"var(--white)")+';border-radius:10px;margin-bottom:8px;overflow:hidden;border:1.5px solid '+(isActive?p.ac:"#EDE8E2")+'">'
+      +'<div style="display:flex;align-items:center;gap:8px;padding:10px 12px">'
+      +'<button data-action="toggle-routine" data-cat="'+cat.id+'" data-routine="'+rt.id+'" style="flex-shrink:0;width:36px;height:20px;border-radius:20px;border:none;background:'+(isActive?p.ac:"#DDD5CC")+';position:relative;cursor:pointer">'
+      +'<span style="position:absolute;top:2px;'+(isActive?"right:2px":"left:2px")+';width:16px;height:16px;border-radius:50%;background:white;display:block"></span>'
+      +'</button>'
+      +'<div style="flex:1" data-action="toggle-routine-panel" data-routine="'+rt.id+'">'
+      +'<div style="font-size:12px;font-weight:600;color:'+(isActive?p.ac:"var(--ink)")+'">'+esc(rt.name)+(isActive?" · Active":"")+'</div>'
+      +'<div style="font-size:10px;opacity:.4">'+n+' task'+(n!==1?"s":"")+'</div></div>'
+      +'<button class="ibtn" data-action="toggle-routine-panel" data-routine="'+rt.id+'"><span style="pointer-events:none">'+(isOpenR?"▾":"▸")+'</span></button>'
+      +'<button class="ibtn" data-action="rename-routine" data-cat="'+cat.id+'" data-routine="'+rt.id+'"><span style="pointer-events:none">✏️</span></button>'
+      +'<button class="ibtn" data-action="del-routine" data-cat="'+cat.id+'" data-routine="'+rt.id+'"><span style="pointer-events:none">🗑️</span></button>'
+      +'</div>';
+    if(isOpenR){
+      h+='<div style="padding:0 12px 12px">';
+      (rt.tasks||[]).forEach(tk=>{
+        h+='<div class="s-task">'
+          +'<div style="flex:1"><div class="s-task-name">'+esc(tk.name)+'</div>'
+          +'<div class="s-task-freq">'+fLabel(tk.freq)+'</div></div>'
+          +'<button class="ibtn" data-action="edit-routine-task" data-cat="'+cat.id+'" data-routine="'+rt.id+'" data-task="'+tk.id+'"><span style="pointer-events:none">✏️</span></button>'
+          +'<button class="ibtn" data-action="del-routine-task" data-cat="'+cat.id+'" data-routine="'+rt.id+'" data-task="'+tk.id+'"><span style="pointer-events:none">🗑️</span></button>'
+          +'</div>';
+      });
+      if(!n) h+='<div style="font-size:12px;opacity:.4;font-style:italic;padding:6px 0">No tasks in this routine yet.</div>';
+      h+='<button class="more-btn" data-action="new-routine-task" data-cat="'+cat.id+'" data-routine="'+rt.id+'">+ Add Task to Routine</button>';
+      h+='</div>';
+    }
+    h+='</div>';
+  });
+  h+='<button class="more-btn" data-action="save-as-routine" data-cat="'+cat.id+'" style="margin-top:6px">+ Save Current Tasks as Routine</button>';
+  h+='</div>';
+  return h;
+}
+
+function buildSaveAsRoutineModal(cat){
+  let h='<div class="mo-title">Save as Routine</div>'
+    +'<div class="mo-lbl">Routine Name</div>'
+    +'<input class="mo-inp" id="routine_name_input" placeholder="e.g. Daily Cleaning" maxlength="30">'
+    +'<div class="mo-lbl">Select Tasks to Include</div>';
+  (cat.tasks||[]).forEach(tk=>{
+    const checked=routineSelectTasks.has(tk.id);
+    h+='<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #F8F5F2">'
+      +'<button class="cbtn'+(checked?" chk":" hv")+'" style="'+(checked?"background:var(--walnut);border-color:var(--walnut)":"border-color:var(--walnut)")+'" data-action="toggle-routine-select" data-cat="'+cat.id+'" data-task="'+tk.id+'">'+(checked?"&#x2713;":"")+'</button>'
+      +'<div style="flex:1;font-size:13px;font-weight:300">'+esc(tk.name)+'</div>'
+      +'<div style="font-size:10px;opacity:.4">'+fLabel(tk.freq)+'</div>'
+      +'</div>';
+  });
+  h+='<button class="mo-save" data-action="confirm-save-as-routine" data-cat="'+cat.id+'">Save Routine</button>'
+    +'<button class="mo-cancel" data-action="close-modal">Cancel</button>';
+  return h;
+}
+
 // ── Modals ─────────────────────────────────────────────────────────────────────
 function openModal(html){
   document.getElementById("mo-box").innerHTML=html;
@@ -1221,15 +1326,34 @@ function modalCat(catId){
   openModal(h);
 }
 
-function modalTask(catId,taskId){
+function modalTask(catId,taskId,routineId){
   const cats=getCats()||[];
   const cat=cats.find(c=>c.id===catId)||{tasks:[]};
-  const task=taskId?cat.tasks.find(t=>t.id===taskId):{id:null,name:"",freq:{type:"daily"},rollover:false,url:"",priority:4};
   mCatId=catId;mTaskId=taskId||null;
+  if(routineId!==undefined){
+    mRoutineId=routineId||null;
+  } else if(taskId){
+    const found=getTaskById(cat,taskId);
+    mRoutineId=found&&found.routine?found.routine.id:null;
+  } else {
+    mRoutineId=null;
+  }
+  let task;
+  if(taskId){
+    if(mRoutineId){
+      const rt=(cat.routines||[]).find(r=>r.id===mRoutineId);
+      task=rt&&(rt.tasks||[]).find(t=>t.id===taskId);
+    } else {
+      task=(cat.tasks||[]).find(t=>t.id===taskId);
+    }
+  }
+  task=task||{id:null,name:"",freq:{type:"daily"},rollover:false,url:"",priority:4};
   mFreq=Object.assign({},task.freq||{type:"daily"});
   const curPriority=task.priority||4;
+  const routineName=mRoutineId?(((cat.routines||[]).find(r=>r.id===mRoutineId)||{}).name||""):"";
 
   let h='<div class="mo-title">'+(taskId?"Edit":"New")+" Task</div>"
+    +(mRoutineId?'<div style="font-size:11px;letter-spacing:.5px;color:var(--walnut);margin:-14px 0 16px">Part of routine: '+esc(routineName)+'</div>':"")
     +'<div class="mo-lbl">Task Name</div>'
     +'<input class="mo-inp" id="mtask_name" placeholder="Task name" maxlength="60" value="'+esc(task.name||"")+'">'
     +'<div class="mo-lbl">Priority</div>'
@@ -1260,7 +1384,7 @@ function modalTask(catId,taskId){
     +'<div class="mo-lbl">End Date (optional)</div>'
     +'<input class="mo-inp" type="date" id="mtask_enddate" value="'+(task.endDate||'')+'" style="font-family:Jost,sans-serif;font-size:14px">'
     +'<div style="font-size:11px;opacity:.4;margin-top:6px">Task stops appearing after this date.</div>';
-  if(taskId){
+  if(taskId&&!mRoutineId){
     const otherCats=cats.filter(c=>c.id!==catId&&!c.isHabits);
     if(otherCats.length>0){
       h+='<div class="mo-lbl">Move to Category</div>'
@@ -1544,7 +1668,7 @@ document.addEventListener("click",function(e){
     const cat=cats.find(c=>c.id===btn.dataset.cat);
     const tk=cat?.tasks.find(t=>t.id===btn.dataset.task);
     mPriority=tk?.priority||4;
-    modalTask(btn.dataset.cat,btn.dataset.task);return;
+    modalTask(btn.dataset.cat,btn.dataset.task,null);return;
   }
   if(a==="save-task"){
     const name=(document.getElementById("mtask_name")||{}).value||"";
@@ -1576,16 +1700,19 @@ document.addEventListener("click",function(e){
     const priority=mPriority||4;
     const cats=getCats()||[];const cat=cats.find(c=>c.id===mCatId);
     if(!cat) return;
+    const targetRoutine=mRoutineId?(cat.routines||[]).find(r=>r.id===mRoutineId):null;
     if(mTaskId){
-      const tk=cat.tasks.find(t=>t.id===mTaskId);
+      const tk=targetRoutine?(targetRoutine.tasks||[]).find(t=>t.id===mTaskId):cat.tasks.find(t=>t.id===mTaskId);
       if(tk){
         const endDateVal2=((document.getElementById("mtask_enddate")||{}).value||"").trim();
         tk.name=name.trim();tk.freq=Object.assign({},mFreq);tk.rollover=rollover;tk.url=url;tk.startTime=startTime;tk.endTime=endTime;tk.priority=priority;tk.endDate=endDateVal2||undefined;
-        if(moveToCat){cat.tasks=cat.tasks.filter(t=>t.id!==mTaskId);const newCat=cats.find(c=>c.id===moveToCat);if(newCat)newCat.tasks.push(tk);}
+        if(moveToCat&&!targetRoutine){cat.tasks=cat.tasks.filter(t=>t.id!==mTaskId);const newCat=cats.find(c=>c.id===moveToCat);if(newCat)newCat.tasks.push(tk);}
       }
     } else {
       const endDateVal=((document.getElementById("mtask_enddate")||{}).value||"").trim();
-      cat.tasks.push({id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover,url,startTime,endTime,priority,endDate:endDateVal||undefined,createdAt:(()=>{const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");})()});
+      const newTask={id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover,url,startTime,endTime,priority,endDate:endDateVal||undefined,createdAt:(()=>{const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");})()};
+      if(targetRoutine){targetRoutine.tasks=targetRoutine.tasks||[];targetRoutine.tasks.push(newTask);}
+      else{cat.tasks.push(newTask);}
     }
     saveCats(cats);closeModal();
     renderMain();return;
@@ -1593,20 +1720,23 @@ document.addEventListener("click",function(e){
   if(a==="del-task"||a==="del-task-modal"){
     const cid=a==="del-task-modal"?mCatId:btn.dataset.cat;
     const tid=a==="del-task-modal"?mTaskId:btn.dataset.task;
+    const rid=a==="del-task-modal"?mRoutineId:(btn.dataset.routine||null);
     const cats=getCats()||[];
     const cat=cats.find(c=>c.id===cid);
-    const tk=cat?.tasks.find(t=>t.id===tid);
-    if(!tk) return;
+    const found=cat&&findTaskAndArr(cat,tid,rid);
+    if(!found) return;
+    const tk=found.task;
+    const ridAttr=rid?' data-routine="'+rid+'"':"";
     closeModal();
     openModal(
       '<div class="mo-title">Remove Task</div>'
       +'<div style="font-size:15px;font-weight:500;color:var(--mocha);margin-bottom:6px">'+esc(tk.name)+'</div>'
       +'<div style="font-size:12px;opacity:.5;margin-bottom:24px">How would you like to remove this task?</div>'
-      +'<button class="mo-del" data-action="del-task-today" data-cat="'+cid+'" data-task="'+tid+'">Skip This Day Only</button>'
+      +'<button class="mo-del" data-action="del-task-today" data-cat="'+cid+'" data-task="'+tid+'"'+ridAttr+'>Skip This Day Only</button>'
       +'<div style="font-size:11px;opacity:.4;text-align:center;margin:8px 0 16px">Hides from the current day. Still appears on all other days.</div>'
-      +'<button class="mo-del" data-action="del-task-forward" data-cat="'+cid+'" data-task="'+tid+'">Remove Today & Forward</button>'
+      +'<button class="mo-del" data-action="del-task-forward" data-cat="'+cid+'" data-task="'+tid+'"'+ridAttr+'>Remove Today & Forward</button>'
       +'<div style="font-size:11px;opacity:.4;text-align:center;margin:8px 0 16px">Keeps past history. Stops showing from today onwards.</div>'
-      +'<button class="mo-del" data-action="del-task-all" data-cat="'+cid+'" data-task="'+tid+'">Delete Everywhere</button>'
+      +'<button class="mo-del" data-action="del-task-all" data-cat="'+cid+'" data-task="'+tid+'"'+ridAttr+'>Delete Everywhere</button>'
       +'<div style="font-size:11px;opacity:.4;text-align:center;margin:8px 0 16px">Removes task and all history permanently.</div>'
       +'<button class="mo-cancel" data-action="close-modal">Cancel</button>'
     );
@@ -1617,9 +1747,9 @@ document.addEventListener("click",function(e){
     const row=document.getElementById("row_"+cid+"_"+tid);if(row)unflipRow(row);
     const cats=getCats()||[];
     const cat=cats.find(c=>c.id===cid);
-    const tk=cat?.tasks.find(t=>t.id===tid);
-    mPriority=tk?.priority||4;
-    modalTask(cid,tid);return;
+    const found=cat&&getTaskById(cat,tid);
+    mPriority=found?found.task.priority||4:4;
+    modalTask(cid,tid,found&&found.routine?found.routine.id:null);return;
   }
   if(a==="task-flip-cancel"){
     const row=document.getElementById(btn.dataset.row);if(row)unflipRow(row);return;
@@ -1630,16 +1760,17 @@ document.addEventListener("click",function(e){
     saveChks(c);closeModal();renderMain();return;
   }
   if(a==="del-task-forward"){
-    const cid=btn.dataset.cat,tid=btn.dataset.task;
+    const cid=btn.dataset.cat,tid=btn.dataset.task,rid=btn.dataset.routine||null;
     const cats=getCats()||[];const cat=cats.find(c=>c.id===cid);
-    const tk=cat?.tasks.find(t=>t.id===tid);
-    if(tk){tk.deletedAfter=new Date().toISOString().split("T")[0];saveCats(cats);}
+    const found=cat&&findTaskAndArr(cat,tid,rid);
+    if(found){found.task.deletedAfter=new Date().toISOString().split("T")[0];saveCats(cats);}
     closeModal();renderMain();return;
   }
   if(a==="del-task-all"){
-    const cid=btn.dataset.cat,tid=btn.dataset.task;
+    const cid=btn.dataset.cat,tid=btn.dataset.task,rid=btn.dataset.routine||null;
     const cats=getCats()||[];const cat=cats.find(c=>c.id===cid);
-    if(cat){cat.tasks=cat.tasks.filter(t=>t.id!==tid);}
+    const found=cat&&findTaskAndArr(cat,tid,rid);
+    if(found){const idx=found.arr.indexOf(found.task);if(idx>=0) found.arr.splice(idx,1);}
     Object.keys(_checks).forEach(wk=>{
       Object.keys(_checks[wk]).forEach(k=>{if(k.includes(":"+cid+":"+tid))delete _checks[wk][k];});
       sbSet("all_checks",_checks);
@@ -1651,6 +1782,135 @@ document.addEventListener("click",function(e){
     const ni=a==="cat-up"?ci-1:ci+1;
     if(ni<0||ni>=cats.length) return;
     [cats[ci],cats[ni]]=[cats[ni],cats[ci]];saveCats(cats);renderMain();return;
+  }
+
+  // ── Routines ───────────────────────────────────────────────────────────────
+  if(a==="toggle-routine"){
+    const cid=btn.dataset.cat,rid=btn.dataset.routine;
+    const cats=getCats()||[];const cat=cats.find(c=>c.id===cid);
+    if(!cat) return;
+    cat.activeRoutineId=cat.activeRoutineId===rid?null:rid;
+    saveCats(cats);renderMain();return;
+  }
+  if(a==="toggle-routine-panel"){
+    openRoutine=openRoutine===btn.dataset.routine?null:btn.dataset.routine;
+    document.getElementById("main").innerHTML=buildSetup();
+    document.getElementById("main").style.paddingTop=document.getElementById("header").offsetHeight+"px";
+    return;
+  }
+  if(a==="rename-routine"){
+    const cid=btn.dataset.cat,rid=btn.dataset.routine;
+    const cats=getCats()||[];const cat=cats.find(c=>c.id===cid);
+    const rt=cat&&(cat.routines||[]).find(r=>r.id===rid);
+    if(!rt) return;
+    openModal(
+      '<div class="mo-title">Rename Routine</div>'
+      +'<div class="mo-lbl">Routine Name</div>'
+      +'<input class="mo-inp" id="routine_rename_input" value="'+esc(rt.name)+'" maxlength="30">'
+      +'<button class="mo-save" data-action="confirm-rename-routine" data-cat="'+cid+'" data-routine="'+rid+'">Save</button>'
+      +'<button class="mo-cancel" data-action="close-modal">Cancel</button>'
+    );
+    return;
+  }
+  if(a==="confirm-rename-routine"){
+    const cid=btn.dataset.cat,rid=btn.dataset.routine;
+    const name=(document.getElementById("routine_rename_input")||{}).value||"";
+    if(!name.trim()) return;
+    const cats=getCats()||[];const cat=cats.find(c=>c.id===cid);
+    const rt=cat&&(cat.routines||[]).find(r=>r.id===rid);
+    if(rt) rt.name=name.trim();
+    saveCats(cats);closeModal();renderMain();return;
+  }
+  if(a==="del-routine"){
+    const cid=btn.dataset.cat,rid=btn.dataset.routine;
+    const cats=getCats()||[];const cat=cats.find(c=>c.id===cid);
+    const rt=cat&&(cat.routines||[]).find(r=>r.id===rid);
+    if(!rt) return;
+    openModal(
+      '<div class="mo-title">Delete Routine</div>'
+      +'<div style="font-size:15px;font-weight:500;color:var(--mocha);margin-bottom:6px">'+esc(rt.name)+'</div>'
+      +'<div style="font-size:12px;opacity:.5;margin-bottom:24px">This permanently deletes the routine, its tasks, and their history.</div>'
+      +'<button class="mo-del" data-action="confirm-del-routine" data-cat="'+cid+'" data-routine="'+rid+'">🗑️ Yes, Delete Routine</button>'
+      +'<button class="mo-cancel" data-action="close-modal">Cancel</button>'
+    );
+    return;
+  }
+  if(a==="confirm-del-routine"){
+    const cid=btn.dataset.cat,rid=btn.dataset.routine;
+    const cats=getCats()||[];const cat=cats.find(c=>c.id===cid);
+    if(!cat) return;
+    const rt=(cat.routines||[]).find(r=>r.id===rid);
+    const taskIds=rt?(rt.tasks||[]).map(t=>t.id):[];
+    cat.routines=(cat.routines||[]).filter(r=>r.id!==rid);
+    if(cat.activeRoutineId===rid) cat.activeRoutineId=null;
+    taskIds.forEach(tid=>{
+      Object.keys(_checks).forEach(wk=>{
+        Object.keys(_checks[wk]).forEach(k=>{if(k.includes(":"+cid+":"+tid))delete _checks[wk][k];});
+      });
+    });
+    sbSet("all_checks",_checks);
+    saveCats(cats);closeModal();openRoutine=null;renderMain();return;
+  }
+  if(a==="new-routine-task"){
+    mCatId=btn.dataset.cat;mTaskId=null;mPriority=4;
+    modalTask(btn.dataset.cat,null,btn.dataset.routine);return;
+  }
+  if(a==="edit-routine-task"){
+    const cid=btn.dataset.cat,rid=btn.dataset.routine,tid=btn.dataset.task;
+    const cats=getCats()||[];const cat=cats.find(c=>c.id===cid);
+    const rt=cat&&(cat.routines||[]).find(r=>r.id===rid);
+    const tk=rt&&(rt.tasks||[]).find(t=>t.id===tid);
+    mPriority=tk?.priority||4;
+    modalTask(cid,tid,rid);return;
+  }
+  if(a==="del-routine-task"){
+    const cid=btn.dataset.cat,rid=btn.dataset.routine,tid=btn.dataset.task;
+    const cats=getCats()||[];const cat=cats.find(c=>c.id===cid);
+    const rt=cat&&(cat.routines||[]).find(r=>r.id===rid);
+    if(!rt) return;
+    rt.tasks=(rt.tasks||[]).filter(t=>t.id!==tid);
+    Object.keys(_checks).forEach(wk=>{
+      Object.keys(_checks[wk]).forEach(k=>{if(k.includes(":"+cid+":"+tid))delete _checks[wk][k];});
+    });
+    sbSet("all_checks",_checks);
+    saveCats(cats);renderMain();return;
+  }
+  if(a==="save-as-routine"){
+    const cid=btn.dataset.cat;
+    const cats=getCats()||[];const cat=cats.find(c=>c.id===cid);
+    if(!cat||!(cat.tasks||[]).length){alert("This category doesn't have any current tasks to save.");return;}
+    routineSelectTasks=new Set((cat.tasks||[]).map(t=>t.id));
+    openModal(buildSaveAsRoutineModal(cat));
+    return;
+  }
+  if(a==="toggle-routine-select"){
+    const tid=btn.dataset.task,cid=btn.dataset.cat;
+    const nameInp=document.getElementById("routine_name_input");
+    const curName=nameInp?nameInp.value:"";
+    if(routineSelectTasks.has(tid)) routineSelectTasks.delete(tid); else routineSelectTasks.add(tid);
+    const cat=(getCats()||[]).find(c=>c.id===cid);
+    if(cat){
+      document.getElementById("mo-box").innerHTML=buildSaveAsRoutineModal(cat);
+      const newInp=document.getElementById("routine_name_input");
+      if(newInp) newInp.value=curName;
+    }
+    return;
+  }
+  if(a==="confirm-save-as-routine"){
+    const cid=btn.dataset.cat;
+    const name=(document.getElementById("routine_name_input")||{}).value||"";
+    if(!name.trim()){alert("Please name your routine.");return;}
+    if(!routineSelectTasks.size){alert("Select at least one task.");return;}
+    const cats=getCats()||[];const cat=cats.find(c=>c.id===cid);
+    if(!cat) return;
+    const moved=(cat.tasks||[]).filter(t=>routineSelectTasks.has(t.id));
+    cat.tasks=(cat.tasks||[]).filter(t=>!routineSelectTasks.has(t.id));
+    const newRoutine={id:"routine_"+Date.now(),name:name.trim(),tasks:moved};
+    cat.routines=cat.routines||[];
+    cat.routines.push(newRoutine);
+    cat.activeRoutineId=newRoutine.id;
+    routineSelectTasks=new Set();
+    saveCats(cats);closeModal();renderMain();return;
   }
 });
 
@@ -1686,7 +1946,7 @@ function getTasksForDay(wk,day){
   const rows=[];
   cats.forEach(cat=>{
     if(!catOn(cat,di,wk,day)||cat.isHabits) return;
-    (cat.tasks||[]).forEach(tk=>{
+    catAllTasks(cat).forEach(tk=>{
       const chk=!!(ch[day+":"+cat.id+":"+tk.id]);
       const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
       if(skipped&&!chk) return;
