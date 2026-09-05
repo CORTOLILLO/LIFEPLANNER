@@ -340,22 +340,34 @@ function fApplies(f,di,slotDateStr){
   if(f.type==="days") return (f.days||[]).includes(di);
   if(f.type==="weekly") return di===(f.day||0);
   if(f.type==="monthly"){
-    const now=new Date();
-    const weekStart=new Date(now.getFullYear(),now.getMonth(),now.getDate()-now.getDay()+wkOff*7);
-    weekStart.setHours(0,0,0,0);
-    const weekEnd=new Date(weekStart);weekEnd.setDate(weekStart.getDate()+6);weekEnd.setHours(23,59,59,999);
-    for(let mOff=-1;mOff<=1;mOff++){
-      const d=new Date(weekStart.getFullYear(),weekStart.getMonth()+mOff,f.date||1);
-      if(d>=weekStart&&d<=weekEnd&&d.getDay()===di) return true;
+    // Which day-of-month is being evaluated. Prefer the actual date passed
+    // in; only fall back to reconstructing from the currently-viewed week
+    // if no date was given (older call sites). Previously this always used
+    // the UI's current wkOff/now, which only happened to be correct when
+    // looking at the currently-selected week — every dashboard/export loop
+    // iterates many other weeks, so monthly tasks silently failed to match
+    // on any day outside whatever week the app UI was sitting on.
+    let dom;
+    if(slotDateStr) dom=parseInt(slotDateStr.split("-")[2],10);
+    else{
+      const now=new Date();
+      const wkParts=wkKey(wkOff).split("-");
+      const d=new Date(parseInt(wkParts[0]),parseInt(wkParts[1])-1,parseInt(wkParts[2])+di);
+      dom=d.getDate();
     }
-    return false;
+    return dom===(f.date||1);
   }
   if(f.type==="annually"){
-    const now=new Date();
-    const weekStart=new Date(now);weekStart.setDate(now.getDate()-now.getDay()+wkOff*7);weekStart.setHours(0,0,0,0);
-    const weekEnd=new Date(weekStart);weekEnd.setDate(weekStart.getDate()+6);weekEnd.setHours(23,59,59,999);
-    const target=new Date(weekStart.getFullYear(),f.month||0,f.date||1);
-    return target>=weekStart&&target<=weekEnd&&target.getDay()===di;
+    let mo,dom;
+    if(slotDateStr){
+      const parts=slotDateStr.split("-");
+      mo=parseInt(parts[1],10)-1;dom=parseInt(parts[2],10);
+    } else {
+      const wkParts=wkKey(wkOff).split("-");
+      const d=new Date(parseInt(wkParts[0]),parseInt(wkParts[1])-1,parseInt(wkParts[2])+di);
+      mo=d.getMonth();dom=d.getDate();
+    }
+    return mo===(f.month||0)&&dom===(f.date||1);
   }
   if(f.type==="once"){
     if(!f.date||f.month===undefined||!f.year) return false;
@@ -372,15 +384,15 @@ function fApplies(f,di,slotDateStr){
 function catOn(cat,di,wk,day){
   if(cat.isHabits) return true;
   const freq=cat.freq||{type:"daily"};
+  let dStr=null;
+  if(wk&&day){const{sunday}=parseWk(wk);const dd=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+DAYS.indexOf(day));dStr=dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0");}
   if(freq.type==="task-days"){
-    let dStr=null;
-    if(wk&&day){const{sunday}=parseWk(wk);const dd=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+DAYS.indexOf(day));dStr=dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0");}
     return catAllTasks(cat,dStr).some(tk=>{
       if(tk.freq&&tk.freq.type==="once") return wk&&day?onceTaskMatchesDay(tk,wk,day):false;
-      return fApplies(tk.freq,di);
+      return fApplies(tk.freq,di,dStr);
     });
   }
-  return fApplies(freq,di);
+  return fApplies(freq,di,dStr);
 }
 function ord(n){const s=["th","st","nd","rd"],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])}
 
@@ -664,7 +676,7 @@ function buildDay(){
     });
     if(catAllTasks(cat,dayDateStr).filter(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
-      return fApplies(tk.freq,di)||chk||tk.rollover;
+      return fApplies(tk.freq,di,dayDateStr)||chk||tk.rollover;
     }).length===0){
       h+='<div style="font-size:13px;opacity:.4;padding:4px 0 8px;font-style:italic">No tasks for today.</div>';
     }
@@ -774,7 +786,7 @@ function buildPriorities(){
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
       if(skipped&&!chk) return;
-      const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di))&&taskCreatedBeforeOrOnDay(tk,wk,day);
+      const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di,dayDateStr))&&taskCreatedBeforeOrOnDay(tk,wk,day);
 
       let show=applies;
       if(tk.rollover){
@@ -853,7 +865,7 @@ function buildSchedule(){
     if(!catOn(cat,di)||cat.isHabits) return;
     catAllTasks(cat,dayDateStr).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
-      const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di))&&taskCreatedBeforeOrOnDay(tk,wk,day);
+      const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di,dayDateStr))&&taskCreatedBeforeOrOnDay(tk,wk,day);
       let show=applies;
       if(tk.rollover){
         const activeDate=getActiveRolloverDate(tk,cat);
@@ -2038,7 +2050,7 @@ function getTasksForDay(wk,day){
       if(skipped&&!chk) return;
       const applies=tk.freq&&tk.freq.type==="once"
         ?onceTaskMatchesDay(tk,wk,day)
-        :fApplies(tk.freq,di);
+        :fApplies(tk.freq,di,dateStr);
       if(!taskCreatedBeforeOrOnDay(tk,wk,day)) return;
       const pr=PRIORITIES.find(p=>p.id===(tk.priority||4));
       // Rollover tasks only count on the single day they're actually "due"
