@@ -1984,16 +1984,41 @@ document.addEventListener("blur",function(e){
 },true);
 
 // ── Export ─────────────────────────────────────────────────────────────────────
+// Tries the native Share Sheet first — this is what actually works reliably on
+// iOS Safari and in-app browsers (including the one inside the Claude app),
+// which frequently ignore the `download` attribute on links entirely, whether
+// it's a data: URI or a Blob URL. Falls back to a plain Blob download link,
+// and as a last resort opens the content in a new tab so it can be saved manually.
+async function shareOrDownload(content,filename,mimeType){
+  try{
+    const file=new File([content],filename,{type:mimeType});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:filename});
+      return;
+    }
+  }catch(e){ /* user cancelled share, or share unsupported — fall through */ }
+  try{
+    const blob=new Blob([content],{type:mimeType});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download=filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),4000);
+  }catch(e){
+    try{
+      const blob=new Blob([content],{type:mimeType});
+      const url=URL.createObjectURL(blob);
+      window.open(url,"_blank");
+    }catch(e2){
+      alert("Couldn't start the download. Try opening this app in Safari directly (not inside another app) and try again.");
+    }
+  }
+}
 function dlCSV(rows,fn){
   const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\n");
-  const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url;a.download=fn;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(url),2000);
+  shareOrDownload(csv,fn,"text/csv;charset=utf-8;");
 }
 function getTasksForDay(wk,day){
   const cats=getCats()||[];
@@ -2012,9 +2037,22 @@ function getTasksForDay(wk,day){
       const applies=tk.freq&&tk.freq.type==="once"
         ?onceTaskMatchesDay(tk,wk,day)
         :fApplies(tk.freq,di);
-      if(!applies&&!chk) return;
       if(!taskCreatedBeforeOrOnDay(tk,wk,day)) return;
       const pr=PRIORITIES.find(p=>p.id===(tk.priority||4));
+      // Rollover tasks only count on the single day they're actually "due"
+      // (or the day they were checked) — matching catProg's dashboard logic,
+      // so a carried-forward task isn't counted once per calendar day.
+      if(tk.rollover){
+        const activeDate=getActiveRolloverDate(tk,cat);
+        if(activeDate){
+          if(dateStr===activeDate) rows.push([dateStr,day,cat.name,tk.name,pr?pr.label:"",chk?"Yes":"No"]);
+          else if(chk) rows.push([dateStr,day,cat.name,tk.name,pr?pr.label:"",chk?"Yes":"No"]);
+        } else if(chk){
+          rows.push([dateStr,day,cat.name,tk.name,pr?pr.label:"",chk?"Yes":"No"]);
+        }
+        return;
+      }
+      if(!applies&&!chk) return;
       rows.push([dateStr,day,cat.name,tk.name,pr?pr.label:"",chk?"Yes":"No"]);
     });
   });
@@ -2138,15 +2176,7 @@ async function exportAll(){
     exported_at:new Date().toISOString(),
     categories:cats
   };
-  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url;
-  a.download="lifeplanner-backup-"+dateStr+".json";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(url),2000);
+  shareOrDownload(JSON.stringify(data,null,2),"lifeplanner-backup-"+dateStr+".json","application/json");
 }
 function importAll(){document.getElementById("import-file-input").click();}
 async function handleImport(e){
