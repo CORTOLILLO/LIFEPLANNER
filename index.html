@@ -1137,23 +1137,25 @@ function buildDashInSetup(){
     const daysInMonth=new Date(dashY,dashM+1,0).getDate();
     let mDone=0,mTotal=0;
     const byCatM={};cats.forEach(c=>{byCatM[c.id]={name:c.name,icon:c.icon,color:c.color,done:0,total:0};});
-    const byWeekM=[];
-    Object.keys(_checks).sort().forEach(wk=>{
-      const{sunday}=parseWk(wk);
-      let wkDone=0,wkTotal=0,wkLabel="";
-      DAYS.forEach((day,di)=>{
-        const d=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+di);
-        if(d.getMonth()!==dashM||d.getFullYear()!==dashY) return;
-        if(!wkLabel) wkLabel=(d.getMonth()+1)+"/"+d.getDate();
-        cats.forEach(cat=>{
-          const p=catProg(cat,day,wk);
-          wkDone+=p.done;wkTotal+=p.total;
-          if(byCatM[cat.id]){byCatM[cat.id].done+=p.done;byCatM[cat.id].total+=p.total;}
-        });
+    // Walk every calendar day of the month (like the CSV export does) rather
+    // than only weeks that happen to have a saved checkmark — otherwise a week
+    // with zero interactions gets silently dropped from both the numerator
+    // and denominator, which is why this used to disagree with the CSV.
+    const weekOrder=[],weekTotals={};
+    for(let date=1;date<=daysInMonth;date++){
+      const d=new Date(dashY,dashM,date);
+      const day=DAYS[d.getDay()];
+      const sun=new Date(dashY,dashM,date-d.getDay());
+      const wk=sun.getFullYear()+"-"+String(sun.getMonth()+1).padStart(2,"0")+"-"+String(sun.getDate()).padStart(2,"0");
+      if(!weekTotals[wk]){weekTotals[wk]={done:0,total:0,label:(d.getMonth()+1)+"/"+date};weekOrder.push(wk);}
+      cats.forEach(cat=>{
+        const p=catProg(cat,day,wk);
+        weekTotals[wk].done+=p.done;weekTotals[wk].total+=p.total;
+        mDone+=p.done;mTotal+=p.total;
+        if(byCatM[cat.id]){byCatM[cat.id].done+=p.done;byCatM[cat.id].total+=p.total;}
       });
-      mDone+=wkDone;mTotal+=wkTotal;
-      if(wkTotal>0) byWeekM.push({label:"Week of "+wkLabel,done:wkDone,total:wkTotal});
-    });
+    }
+    const byWeekM=weekOrder.filter(wk=>weekTotals[wk].total>0).map(wk=>({label:"Week of "+weekTotals[wk].label,done:weekTotals[wk].done,total:weekTotals[wk].total}));
     const mPct=mTotal?Math.round(mDone/mTotal*100):0;
     if(!mTotal){
       h+='<div style="text-align:center;padding:20px;opacity:.35;font-size:13px">No data for this month yet.</div>';
@@ -1182,14 +1184,14 @@ function buildDashInSetup(){
     const byMonthY=[];
     for(let m=0;m<12;m++){
       let mDone=0,mTotal=0;
-      Object.keys(_checks).forEach(wk=>{
-        const{sunday}=parseWk(wk);
-        DAYS.forEach((day,di)=>{
-          const d=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+di);
-          if(d.getMonth()!==m||d.getFullYear()!==dashY) return;
-          cats.forEach(cat=>{const p=catProg(cat,day,wk);mDone+=p.done;mTotal+=p.total;});
-        });
-      });
+      const daysInM=new Date(dashY,m+1,0).getDate();
+      for(let date=1;date<=daysInM;date++){
+        const d=new Date(dashY,m,date);
+        const day=DAYS[d.getDay()];
+        const sun=new Date(dashY,m,date-d.getDay());
+        const wk=sun.getFullYear()+"-"+String(sun.getMonth()+1).padStart(2,"0")+"-"+String(sun.getDate()).padStart(2,"0");
+        cats.forEach(cat=>{const p=catProg(cat,day,wk);mDone+=p.done;mTotal+=p.total;});
+      }
       yrDone+=mDone;yrTotal+=mTotal;
       if(mTotal>0) byMonthY.push({label:MONTHS[m].slice(0,3),done:mDone,total:mTotal});
     }
