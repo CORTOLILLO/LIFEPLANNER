@@ -372,7 +372,9 @@ function catOn(cat,di,wk,day){
   if(cat.isHabits) return true;
   const freq=cat.freq||{type:"daily"};
   if(freq.type==="task-days"){
-    return catAllTasks(cat).some(tk=>{
+    let dStr=null;
+    if(wk&&day){const{sunday}=parseWk(wk);const dd=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+DAYS.indexOf(day));dStr=dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0");}
+    return catAllTasks(cat,dStr).some(tk=>{
       if(tk.freq&&tk.freq.type==="once") return wk&&day?onceTaskMatchesDay(tk,wk,day):false;
       return fApplies(tk.freq,di);
     });
@@ -392,26 +394,54 @@ function getActiveRoutine(cat){
   if(!cat||!cat.routines||!cat.routines.length||!cat.activeRoutineId) return null;
   return cat.routines.find(r=>r.id===cat.activeRoutineId)||null;
 }
-function catAllTasks(cat){
-  const rt=getActiveRoutine(cat);
-  return (cat.tasks||[]).concat(rt?(rt.tasks||[]):[]);
+function todayStr(){const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");}
+// Record that `rid` (or null for "no routine") became active on `cat`, starting today.
+// This timeline is what lets past days keep showing whichever routine was actually
+// running on them, even after you've since switched to a different one.
+function logRoutineChange(cat,rid){
+  cat.routineLog=cat.routineLog||[];
+  const t=todayStr();
+  const last=cat.routineLog[cat.routineLog.length-1];
+  if(last&&last.start===t) last.routineId=rid;
+  else cat.routineLog.push({routineId:rid,start:t});
 }
-// Locate a task among a category's loose tasks or its active routine's tasks.
-// Used for Day/Schedule/Priorities interactions, where only loose + active
-// routine tasks are ever visible.
+// Which routine (if any) was active on a given category on a given date.
+// Uses the recorded timeline when we have one. For dates before any timeline
+// existed (i.e. history from before this feature, or before the very first
+// toggle), we can't know for certain which single routine was live — so rather
+// than dropping that history, every routine's tasks count for those old days.
+function catAllTasks(cat,dateStr){
+  if(!cat) return [];
+  const loose=cat.tasks||[];
+  const log=cat.routineLog;
+  if(dateStr&&log&&log.length){
+    let rid=null;
+    for(const entry of log){ if(entry.start<=dateStr) rid=entry.routineId; else break; }
+    const rt=rid?(cat.routines||[]).find(r=>r.id===rid):null;
+    return loose.concat(rt?(rt.tasks||[]):[]);
+  }
+  if(dateStr&&dateStr<todayStr()){
+    let all=loose.slice();
+    (cat.routines||[]).forEach(rt=>{all=all.concat(rt.tasks||[]);});
+    return all;
+  }
+  const rt=getActiveRoutine(cat);
+  return loose.concat(rt?(rt.tasks||[]):[]);
+}
+// Locate a task among a category's loose tasks or ANY of its routines
+// (active or not) — used for edit/delete so you can still manage a task
+// that's currently hidden inside an inactive routine.
 function getTaskById(cat,tid){
   if(!cat) return null;
   let tk=(cat.tasks||[]).find(t=>t.id===tid);
   if(tk) return{task:tk,arr:cat.tasks,routine:null};
-  const rt=getActiveRoutine(cat);
-  if(rt){
+  for(const rt of (cat.routines||[])){
     tk=(rt.tasks||[]).find(t=>t.id===tid);
     if(tk) return{task:tk,arr:rt.tasks,routine:rt};
   }
   return null;
 }
-// Like getTaskById, but if a routineId is explicitly known (e.g. from a setup
-// panel managing a specific, possibly-inactive, routine) look there directly.
+// Like getTaskById, but if a routineId is explicitly known, look there directly.
 function findTaskAndArr(cat,tid,routineId){
   if(routineId){
     const rt=(cat.routines||[]).find(r=>r.id===routineId);
@@ -438,7 +468,7 @@ function catProg(cat,day,wk){
   const _sun=parseWk(wk).sunday;
   const _d=new Date(_sun.getFullYear(),_sun.getMonth(),_sun.getDate()+di);
   const _slotStr=_d.getFullYear()+"-"+String(_d.getMonth()+1).padStart(2,"0")+"-"+String(_d.getDate()).padStart(2,"0");
-  catAllTasks(cat).forEach(tk=>{
+  catAllTasks(cat,_slotStr).forEach(tk=>{
     const checked=isChk(day+":"+cat.id+":"+tk.id);
     const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
     if(skipped&&!checked) return;
@@ -548,6 +578,9 @@ function renderMain(){
 function buildDay(){
   const day=activeDay,di=DAYS.indexOf(day),cats=getCats()||[];
   const wk=wkKey(),ch=chks(),c=cu();
+  const{sunday:_daySun}=parseWk(wk);
+  const _dayDateObj=new Date(_daySun.getFullYear(),_daySun.getMonth(),_daySun.getDate()+di);
+  const dayDateStr=_dayDateObj.getFullYear()+"-"+String(_dayDateObj.getMonth()+1).padStart(2,"0")+"-"+String(_dayDateObj.getDate()).padStart(2,"0");
   if(!cats.length) return emptyPlanner();
   let h='<div class="dv-top"><div><div class="dv-title">'+day+"</div>"+
     '<div style="font-size:11px;opacity:.45;letter-spacing:.5px;margin-top:2px;color:var(--walnut)">'+
@@ -605,7 +638,7 @@ function buildDay(){
     }
     h+=secHdr(cat,prog.done,prog.total,isO);
     h+='<div class="sec-body">';
-    catAllTasks(cat).forEach(tk=>{
+    catAllTasks(cat,dayDateStr).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
       if(skipped&&!chk) return;
@@ -628,7 +661,7 @@ function buildDay(){
       if(applies){h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once");return;}
       if(chk) h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once");
     });
-    if(catAllTasks(cat).filter(tk=>{
+    if(catAllTasks(cat,dayDateStr).filter(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       return fApplies(tk.freq,di)||chk||tk.rollover;
     }).length===0){
@@ -727,13 +760,16 @@ function buildPriorities(){
   const day=activeDay,di=DAYS.indexOf(day),cats=getCats()||[];
   const wk=wkKey(),ch=chks();
   const chkVal=(key)=>!!(ch[key]||ch[wk+":"+key]);
+  const{sunday:_pSun}=parseWk(wk);
+  const _pDate=new Date(_pSun.getFullYear(),_pSun.getMonth(),_pSun.getDate()+di);
+  const dayDateStr=_pDate.getFullYear()+"-"+String(_pDate.getMonth()+1).padStart(2,"0")+"-"+String(_pDate.getDate()).padStart(2,"0");
 
   // Collect all tasks for today with their priority
   const buckets={1:[],2:[],3:[],4:[]};
 
   cats.forEach(cat=>{
     if(!catOn(cat,di)||cat.isHabits) return;
-    catAllTasks(cat).forEach(tk=>{
+    catAllTasks(cat,dayDateStr).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
       if(skipped&&!chk) return;
@@ -808,10 +844,13 @@ function buildSchedule(){
   const day=activeDay,di=DAYS.indexOf(day),cats=getCats()||[];
   const wk=wkKey(),ch=chks();
   const chkVal=(key)=>!!(ch[key]||ch[wk+":"+key]);
+  const{sunday:_scSun}=parseWk(wk);
+  const _scDate=new Date(_scSun.getFullYear(),_scSun.getMonth(),_scSun.getDate()+di);
+  const dayDateStr=_scDate.getFullYear()+"-"+String(_scDate.getMonth()+1).padStart(2,"0")+"-"+String(_scDate.getDate()).padStart(2,"0");
   const scheduled=[],unscheduled=[];
   cats.forEach(cat=>{
     if(!catOn(cat,di)||cat.isHabits) return;
-    catAllTasks(cat).forEach(tk=>{
+    catAllTasks(cat,dayDateStr).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di))&&taskCreatedBeforeOrOnDay(tk,wk,day);
       let show=applies;
@@ -1789,7 +1828,9 @@ document.addEventListener("click",function(e){
     const cid=btn.dataset.cat,rid=btn.dataset.routine;
     const cats=getCats()||[];const cat=cats.find(c=>c.id===cid);
     if(!cat) return;
-    cat.activeRoutineId=cat.activeRoutineId===rid?null:rid;
+    const newActive=cat.activeRoutineId===rid?null:rid;
+    logRoutineChange(cat,newActive);
+    cat.activeRoutineId=newActive;
     saveCats(cats);renderMain();return;
   }
   if(a==="toggle-routine-panel"){
@@ -1908,6 +1949,7 @@ document.addEventListener("click",function(e){
     const newRoutine={id:"routine_"+Date.now(),name:name.trim(),tasks:moved};
     cat.routines=cat.routines||[];
     cat.routines.push(newRoutine);
+    logRoutineChange(cat,newRoutine.id);
     cat.activeRoutineId=newRoutine.id;
     routineSelectTasks=new Set();
     saveCats(cats);closeModal();renderMain();return;
@@ -1946,7 +1988,7 @@ function getTasksForDay(wk,day){
   const rows=[];
   cats.forEach(cat=>{
     if(!catOn(cat,di,wk,day)||cat.isHabits) return;
-    catAllTasks(cat).forEach(tk=>{
+    catAllTasks(cat,dateStr).forEach(tk=>{
       const chk=!!(ch[day+":"+cat.id+":"+tk.id]);
       const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
       if(skipped&&!chk) return;
