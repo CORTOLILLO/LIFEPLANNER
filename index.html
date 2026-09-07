@@ -419,26 +419,25 @@ function logRoutineChange(cat,rid){
   else cat.routineLog.push({routineId:rid,start:t});
 }
 // Which routine (if any) was active on a given category on a given date.
-// Uses the recorded timeline when we have one. For dates before any timeline
-// existed (i.e. history from before this feature, or before the very first
-// toggle), we can't know for certain which single routine was live — so rather
-// than dropping that history, every routine's tasks count for those old days.
+// Uses the recorded timeline when we have one — that's real, permanent data
+// from the moment you first toggle a routine onward, and it's never guessed
+// at or rewritten later. For dates before any timeline entry exists at all
+// (i.e. before the very first toggle since this feature shipped), there is
+// no record of what was active back then, full stop — nothing captured it.
+// Rather than invent an answer (assume everything was active, or assume
+// today's setup was always active), those days simply don't attribute any
+// routine's tasks — only the plain, non-routine tasks count. That can
+// undercount a day that genuinely had a routine running before tracking
+// started, but it will never fabricate a toggled-off routine's tasks
+// appearing somewhere they didn't belong.
 function catAllTasks(cat,dateStr){
   if(!cat) return [];
   const loose=cat.tasks||[];
   const log=cat.routineLog;
-  if(dateStr&&log&&log.length){
-    let rid=null;
-    for(const entry of log){ if(entry.start<=dateStr) rid=entry.routineId; else break; }
-    const rt=rid?(cat.routines||[]).find(r=>r.id===rid):null;
-    return loose.concat(rt?(rt.tasks||[]):[]);
-  }
-  if(dateStr&&dateStr<todayStr()){
-    let all=loose.slice();
-    (cat.routines||[]).forEach(rt=>{all=all.concat(rt.tasks||[]);});
-    return all;
-  }
-  const rt=getActiveRoutine(cat);
+  if(!dateStr||!log||!log.length) return loose;
+  let rid=null;
+  for(const entry of log){ if(entry.start<=dateStr) rid=entry.routineId; else break; }
+  const rt=rid?(cat.routines||[]).find(r=>r.id===rid):null;
   return loose.concat(rt?(rt.tasks||[]):[]);
 }
 // Locate a task among a category's loose tasks or ANY of its routines
@@ -781,7 +780,7 @@ function buildPriorities(){
   const buckets={1:[],2:[],3:[],4:[]};
 
   cats.forEach(cat=>{
-    if(!catOn(cat,di)||cat.isHabits) return;
+    if(!catOn(cat,di,wk,day)||cat.isHabits) return;
     catAllTasks(cat,dayDateStr).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
@@ -862,7 +861,7 @@ function buildSchedule(){
   const dayDateStr=_scDate.getFullYear()+"-"+String(_scDate.getMonth()+1).padStart(2,"0")+"-"+String(_scDate.getDate()).padStart(2,"0");
   const scheduled=[],unscheduled=[];
   cats.forEach(cat=>{
-    if(!catOn(cat,di)||cat.isHabits) return;
+    if(!catOn(cat,di,wk,day)||cat.isHabits) return;
     catAllTasks(cat,dayDateStr).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di,dayDateStr))&&taskCreatedBeforeOrOnDay(tk,wk,day);
