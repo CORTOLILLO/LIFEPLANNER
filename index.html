@@ -27,11 +27,15 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:var(-
 .nav-btn{background:rgba(255,255,255,.5);border:1px solid rgba(180,165,150,.4);color:var(--mocha);border-radius:20px;padding:4px 12px;font-size:10px;cursor:pointer;font-family:var(--sans);letter-spacing:.5px}
 .setup-btn{background:rgba(255,255,255,.6);border:1px solid rgba(180,165,150,.5);color:var(--mocha);border-radius:20px;padding:4px 12px;font-size:11px;cursor:pointer;font-family:var(--sans);font-weight:500}
 #view-tabs{display:flex;gap:4px;margin-bottom:10px}
-.vtab{flex:1;padding:7px 0;border-radius:20px;border:none;cursor:pointer;font-size:10px;font-weight:500;letter-spacing:1px;text-transform:uppercase;font-family:var(--sans);background:rgba(255,255,255,.35);color:var(--walnut);transition:all .2s}
+.vtab{flex:1;padding:8px 0 7px;border-radius:20px;border:none;cursor:pointer;font-size:13px;font-weight:400;letter-spacing:.3px;font-family:var(--sans);background:rgba(255,255,255,.35);color:var(--walnut);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px}
+.vtab svg{flex-shrink:0;margin-top:-2px}
+.setup-btn svg{display:block}
 .vtab.active{background:var(--ivory);color:var(--mocha);box-shadow:0 1px 6px rgba(180,165,150,.3)}
-#day-tabs{display:flex;gap:5px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none}
+.dtab.today .dtab-mo{color:#B5838F}
+.dtab.today .dtab-today{color:#B5838F;opacity:1}
+#day-tabs{display:flex;gap:4px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none}
 #day-tabs::-webkit-scrollbar{display:none}
-.dtab{min-width:50px;flex-shrink:0;padding:6px 3px;border-radius:10px;border:1px solid transparent;background:rgba(255,255,255,.25);color:rgba(92,79,69,.45);cursor:pointer;text-align:center;font-family:var(--sans)}
+.dtab{flex:1;min-width:0;padding:6px 1px;border-radius:10px;border:1px solid transparent;background:rgba(255,255,255,.25);color:rgba(92,79,69,.45);cursor:pointer;text-align:center;font-family:var(--sans)}
 .dtab.today{background:rgba(255,255,255,.5);color:var(--mocha)}
 .dtab.active{border-color:var(--walnut);background:rgba(255,255,255,.7);color:var(--mocha)}
 .dtab-name{font-size:9px;letter-spacing:1.5px;font-weight:500;margin-bottom:2px;text-transform:uppercase}
@@ -105,7 +109,7 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:var(-
 .wsc-pct{font-family:"Cormorant Garamond",serif;font-size:16px;font-weight:600;color:var(--walnut)}
 .wsc-frac{font-size:10px;opacity:.38;margin-top:4px;letter-spacing:.3px}
 .dv-top{display:flex;justify-content:space-between;align-items:flex-end;padding:14px}
-.dv-title{font-family:"Cormorant Garamond",serif;font-size:36px;font-weight:600;letter-spacing:.5px;font-style:italic;color:var(--mocha)}
+.dv-title{font-family:"Italiana",serif;font-size:30px;font-weight:400;letter-spacing:1px;line-height:1.1;color:var(--mocha)}
 .rf{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
 /* Setup */
 .sv{padding:14px 14px 100px}
@@ -239,6 +243,17 @@ const QS=[
   {name:"SELF CARE",icon:"🧘",color:8,isHabits:false,hint:"Skincare, journaling, rest"},
   {name:"SHOPPING",icon:"🛒",color:6,isHabits:false,hint:"Groceries, errands, lists"},
 ];
+
+// ── Line icons ─────────────────────────────────────────────────────────────────
+function svgIcon(inner,size,color){
+  return '<svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'" fill="none" stroke="'+color+'" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+inner+'</svg>';
+}
+const ICON_PATHS={
+  calendar:'<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/><path d="M8 15h2v2H8z"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
+  target:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  gear:'<path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37c1 .608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/>'
+};
 
 // ── Priority tiers ─────────────────────────────────────────────────────────────
 const PRIORITIES=[
@@ -525,14 +540,18 @@ function renderHeader(){
     if(!item) return;
     const b=document.createElement("button");
     b.className=item[0]==="setup"?"setup-btn":"nav-btn";
-    b.textContent=item[1];b.dataset.action=item[0];
+    if(item[0]==="setup"){b.innerHTML=svgIcon(ICON_PATHS.gear,15,"#B8A9CC");b.setAttribute("aria-label","Settings");}
+    else b.textContent=item[1];
+    b.dataset.action=item[0];
     nb.appendChild(b);
   });
 
   const vt=document.getElementById("view-tabs");vt.innerHTML="";
-  [["day","📅 Day"],["schedule","🗓 Schedule"],["priorities","🎯 Priorities"]].forEach(([v,l])=>{
+  [["day","Day","calendar","#C9A8B8"],["schedule","Schedule","clock","#9DB5C9"],["priorities","Priorities","target","#A8C4B8"]].forEach(([v,l,ic,col])=>{
     const b=document.createElement("button");
-    b.className="vtab"+(view===v?" active":"");b.textContent=l;b.dataset.action="view-"+v;
+    b.className="vtab"+(view===v?" active":"");
+    b.innerHTML=svgIcon(ICON_PATHS[ic],15,col)+'<span>'+l+'</span>';
+    b.dataset.action="view-"+v;
     vt.appendChild(b);
   });
 
@@ -588,11 +607,9 @@ function buildDay(){
   if(!cats.length) return emptyPlanner();
   let h='<div class="dv-top"><div><div class="dv-title">'+day+"</div>"+
     '<div style="font-size:11px;opacity:.45;letter-spacing:.5px;margin-top:2px;color:var(--walnut)">'+
-    (()=>{const now=new Date();const di=DAYS.indexOf(day);const todayDi=now.getDay();const diff=di-todayDi+(wkOff*7);const d=new Date(now.getFullYear(),now.getMonth(),now.getDate()+diff);return (d.getMonth()+1)+"/"+d.getDate();})()
+    (()=>{const now=new Date();const di=DAYS.indexOf(day);const todayDi=now.getDay();const diff=di-todayDi+(wkOff*7);const d=new Date(now.getFullYear(),now.getMonth(),now.getDate()+diff);return MONTHS[d.getMonth()]+" "+d.getDate();})()
     +"</div></div>"
-    +'<div style="display:flex;gap:6px">'
-    +'<button class="exp-btn" data-action="export-week">&#x2B07; EXPORT</button>'
-    +'</div></div>';
+    +'</div>';
 
   const activeCats=cats.filter(cat=>catOn(cat,di,wk,activeDay));
   const incomplete=[],empty=[],complete=[];
@@ -881,8 +898,7 @@ function buildSchedule(){
   scheduled.sort((a,b)=>a.tk.startTime.localeCompare(b.tk.startTime));
 
   let h='<div class="dv-top"><div><div class="dv-title">'+day+"</div>"
-    +'<div style="font-size:11px;opacity:.5;letter-spacing:.5px;margin-top:2px">Daily Schedule</div></div>'
-    +'<button class="exp-btn" data-action="export-week">&#x2B07; EXPORT</button></div>';
+    +'<div style="font-size:11px;opacity:.5;letter-spacing:.5px;margin-top:2px">Daily Schedule</div></div></div>';
 
   if(!scheduled.length&&!unscheduled.length){
     h+='<div style="text-align:center;padding:60px 20px;opacity:.4">'
