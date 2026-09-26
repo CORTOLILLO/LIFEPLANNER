@@ -30,6 +30,8 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:var(-
 .vtab{flex:1;padding:8px 0 7px;border-radius:20px;border:none;cursor:pointer;font-size:13px;font-weight:400;letter-spacing:.3px;font-family:var(--sans);background:rgba(255,255,255,.35);color:var(--walnut);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px}
 .vtab svg{flex-shrink:0;margin-top:-2px}
 .setup-btn svg{display:block}
+.ci{display:inline-flex;vertical-align:middle;line-height:0}
+.ci svg{display:block}
 .vtab.active{background:var(--ivory);color:var(--mocha);box-shadow:0 1px 6px rgba(180,165,150,.3)}
 .dtab.today .dtab-mo{color:#B5838F}
 .dtab.today .dtab-today{color:#B5838F;opacity:1}
@@ -245,15 +247,60 @@ const QS=[
 ];
 
 // ── Line icons ─────────────────────────────────────────────────────────────────
-function svgIcon(inner,size,color){
-  return '<svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'" fill="none" stroke="'+color+'" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+inner+'</svg>';
+// Duotone: a soft tint fills the shape, a richer shade draws the lines
+function svgIcon(inner,size,color,tint){
+  return '<svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'" fill="'+(tint||"none")+'" stroke="'+color+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+inner.replace(/\{c\}/g,color)+'</svg>';
 }
 const ICON_PATHS={
-  calendar:'<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/><path d="M8 15h2v2H8z"/>',
-  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
-  target:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  calendar:'<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4H4z" fill="{c}"/><path d="M8 15h2v2H8z" fill="{c}"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" fill="none"/>',
+  target:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="{c}"/>',
   gear:'<path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37c1 .608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/>'
 };
+
+// ── Category icons ─────────────────────────────────────────────────────────────
+// Each emoji from the icon picker has a matching duotone line icon, colored with
+// the category's own color. Anything not in this list still shows as the emoji.
+const CAT_ICON_PATHS={
+  "💪":'<rect x="5" y="7" width="3.5" height="10" rx="1"/><rect x="15.5" y="7" width="3.5" height="10" rx="1"/><path d="M8.5 12h7M2.5 10v4M21.5 10v4" fill="none"/>',
+  "🧹":'<path d="M20 3l-7.5 7.5" fill="none"/><path d="M12.5 10.5l-5 1.2L4 19l1 1 7.3-3.5 1.2-5z"/><path d="M8 15l-2 2" fill="none"/>',
+  "🥗":'<path d="M3 11h18a9 9 0 0 1-18 0z"/><path d="M8 8.5c.5-2 2-3.5 4-3.5M12 5c2 0 3.5 1.5 4 3.5M12 5v3" fill="none"/>',
+  "📋":'<rect x="5" y="4" width="14" height="17" rx="2"/><rect x="9" y="2.5" width="6" height="3.5" rx="1" fill="{c}"/><path d="M9 11h6M9 15h4" fill="none"/>',
+  "✅":'<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6" fill="none"/>',
+  "✨":'<path d="M11 3l1.8 5.2L18 10l-5.2 1.8L11 17l-1.8-5.2L4 10l5.2-1.8z"/><path d="M18.5 15l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" fill="{c}"/>',
+  "🏠":'<path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/>',
+  "💊":'<path d="M4.5 12.5l8-8a4.95 4.95 0 0 1 7 7l-8 8a4.95 4.95 0 0 1-7-7z"/><path d="M8.5 8.5l7 7" fill="none"/>',
+  "📚":'<path d="M5 5a2 2 0 0 1 2-2h12v15H7a2 2 0 0 0-2 2z"/><path d="M5 20a2 2 0 0 1 2-2h12v3H7a2 2 0 0 1-2-1z" fill="{c}"/>',
+  "🎵":'<path d="M10 17V5l10-2v12" fill="none"/><circle cx="7" cy="17" r="3"/><circle cx="17" cy="15" r="3"/>',
+  "💰":'<circle cx="12" cy="12" r="9"/><path d="M14.5 9.5c-.4-.9-1.4-1.5-2.5-1.5-1.4 0-2.5.8-2.5 2s1.1 1.6 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2c-1.1 0-2.1-.6-2.5-1.5M12 6.5V8M12 16v1.5" fill="none"/>',
+  "🐱":'<path d="M4 4l4 3h8l4-3v8a8 8 0 0 1-16 0z"/><circle cx="9" cy="12" r="1" fill="{c}"/><circle cx="15" cy="12" r="1" fill="{c}"/><path d="M11 15.5h2l-1 1z" fill="{c}"/>',
+  "🌿":'<path d="M5 19C5 11 10 5 20 5c0 10-6 15-14 15z"/><path d="M5 19l8-8" fill="none"/>',
+  "🧘":'<path d="M12 20c-4 0-8-2-9-6 3-1 6 0 9 3 3-3 6-4 9-3-1 4-5 6-9 6z"/><path d="M12 17c-2-2-3-5-2-9 .8 0 2 1 2 1s1.2-1 2-1c1 4 0 7-2 9z"/>',
+  "🛒":'<path d="M6.5 8H21l-2.5 7h-11z"/><path d="M3 4h2l2.5 11" fill="none"/><circle cx="9" cy="19" r="1.5" fill="{c}"/><circle cx="17" cy="19" r="1.5" fill="{c}"/>',
+  "💼":'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M3 12.5h18" fill="none"/>',
+  "🎯":'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="{c}"/>',
+  "🌟":'<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>',
+  "🏃":'<circle cx="12" cy="12" r="9"/><path d="M6 12h2.5l2-4 3 8 2-4H18" fill="none"/>',
+  "❤️":'<path d="M12 20s-7-4.4-9-9a4.5 4.5 0 0 1 9-3 4.5 4.5 0 0 1 9 3c-2 4.6-9 9-9 9z"/>'
+};
+// Richer shade of a pastel for the icon outline
+function deepen(hex){
+  let r=parseInt(hex.slice(1,3),16)/255,g=parseInt(hex.slice(3,5),16)/255,b=parseInt(hex.slice(5,7),16)/255;
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b);let h=0,sat=0,l=(mx+mn)/2;
+  if(mx!==mn){const d=mx-mn;sat=l>.5?d/(2-mx-mn):d/(mx+mn);
+    h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;h/=6;}
+  sat=Math.min(1,sat*1.7+.08);l=Math.max(0,l-.2);
+  const f=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;};
+  const q=l<.5?l*(1+sat):l+sat-l*sat,p=2*l-q;
+  const to=x=>Math.round(x*255).toString(16).padStart(2,"0");
+  return "#"+to(f(p,q,h+1/3))+to(f(p,q,h))+to(f(p,q,h-1/3));
+}
+function catIcon(icon,colorIdx,size){
+  const inner=CAT_ICON_PATHS[icon];
+  if(!inner) return '<span style="font-size:'+size+'px;line-height:1">'+(icon||"")+'</span>';
+  const p=PALETTE[colorIdx||0]||PALETTE[0];
+  return '<span class="ci">'+svgIcon(inner,size,deepen(p.ac),p.lt)+'</span>';
+}
 
 // ── Priority tiers ─────────────────────────────────────────────────────────────
 const PRIORITIES=[
@@ -540,17 +587,17 @@ function renderHeader(){
     if(!item) return;
     const b=document.createElement("button");
     b.className=item[0]==="setup"?"setup-btn":"nav-btn";
-    if(item[0]==="setup"){b.innerHTML=svgIcon(ICON_PATHS.gear,15,"#B8A9CC");b.setAttribute("aria-label","Settings");}
+    if(item[0]==="setup"){b.innerHTML=svgIcon(ICON_PATHS.gear,17,"#8F7BBF","#E3DAF3");b.setAttribute("aria-label","Settings");}
     else b.textContent=item[1];
     b.dataset.action=item[0];
     nb.appendChild(b);
   });
 
   const vt=document.getElementById("view-tabs");vt.innerHTML="";
-  [["day","Day","calendar","#C9A8B8"],["schedule","Schedule","clock","#9DB5C9"],["priorities","Priorities","target","#A8C4B8"]].forEach(([v,l,ic,col])=>{
+  [["day","Day","calendar","#C0708C","#F6DCE6"],["schedule","Schedule","clock","#5F8DB8","#D8E7F4"],["priorities","Priorities","target","#5E9C80","#D5EBDF"]].forEach(([v,l,ic,col,tint])=>{
     const b=document.createElement("button");
     b.className="vtab"+(view===v?" active":"");
-    b.innerHTML=svgIcon(ICON_PATHS[ic],15,col)+'<span>'+l+'</span>';
+    b.innerHTML=svgIcon(ICON_PATHS[ic],17,col,tint)+'<span>'+l+'</span>';
     b.dataset.action="view-"+v;
     vt.appendChild(b);
   });
@@ -703,7 +750,7 @@ function divider(label){
 
 function secHdr(cat,done,total,isO){
   return '<button class="sec-hdr" data-action="toggle-sec" data-sec="'+cat.id+'">'
-    +'<span class="sec-icon">'+cat.icon+'</span>'
+    +'<span class="sec-icon">'+catIcon(cat.icon,cat.color,21)+'</span>'
     +'<div style="flex:1"><div class="sec-name">'+cat.name+"</div></div>"
     +(total>0?'<span class="sec-badge'+(done===total?"":" dim")+'">'+done+"/"+total+"</span>":"")
     +'<span class="chev">&#x203A;</span></button>';
@@ -843,7 +890,7 @@ function buildPriorities(){
           +'<div style="font-size:14px;font-weight:300;color:var(--ink)'+(chk?';text-decoration:line-through;color:var(--stone)':'')+'">'
           +(tk.url?'<a href="'+esc(tk.url)+'" target="_blank" style="color:inherit;text-decoration:none">'+esc(tk.name)+' 🔗</a>':esc(tk.name))
           +'</div>'
-          +'<div class="pv-task-meta">'+cat.icon+' '+cat.name+(tk.startTime?' · '+fmt12(tk.startTime):'')+'</div>'
+          +'<div class="pv-task-meta">'+catIcon(cat.icon,cat.color,12)+' '+cat.name+(tk.startTime?' · '+fmt12(tk.startTime):'')+'</div>'
           +'</div>'
           +clipBtn(cat.id,tk)
           +'</div>';
@@ -919,7 +966,7 @@ function buildSchedule(){
         +'<button class="cbtn'+(chk?" chk":" hv")+'" style="'+(chk?"background:"+p.ac+";border-color:"+p.ac:"border-color:"+p.ac)+';flex-shrink:0" data-action="check" data-cat="'+cat.id+'" data-tk="'+tk.id+'">'+(chk?"&#x2713;":"")+"</button>"
         +'<div style="flex:1">'
         +'<div style="font-size:14px;font-weight:400;color:var(--ink)'+(chk?";text-decoration:line-through;color:var(--stone)":"")+'">'+(tk.url?'<a href="'+esc(tk.url)+'" target="_blank" style="color:inherit;text-decoration:none">'+esc(tk.name)+' 🔗</a>':esc(tk.name))+"</div>"
-        +'<div style="font-size:10px;opacity:.4;margin-top:2px;letter-spacing:.5px">'+cat.icon+" "+cat.name+"</div>"
+        +'<div style="font-size:10px;opacity:.4;margin-top:2px;letter-spacing:.5px">'+catIcon(cat.icon,cat.color,12)+" "+cat.name+"</div>"
         +"</div>"+clipBtn(cat.id,tk)+"</div></div></div>";
     });
   }
@@ -931,7 +978,7 @@ function buildSchedule(){
         +'<button class="cbtn'+(chk?" chk":" hv")+'" style="'+(chk?"background:"+p.ac+";border-color:"+p.ac:"border-color:"+p.ac)+'" data-action="check" data-cat="'+cat.id+'" data-tk="'+tk.id+'">'+(chk?"&#x2713;":"")+"</button>"
         +'<div style="flex:1">'
         +'<div style="font-size:14px;font-weight:400;color:var(--ink)'+(chk?";text-decoration:line-through;color:var(--stone)":"")+'">'+(tk.url?'<a href="'+esc(tk.url)+'" target="_blank" style="color:inherit;text-decoration:none">'+esc(tk.name)+' 🔗</a>':esc(tk.name))+"</div>"
-        +'<div style="font-size:10px;opacity:.4;margin-top:2px;letter-spacing:.5px">'+cat.icon+" "+cat.name+"</div>"
+        +'<div style="font-size:10px;opacity:.4;margin-top:2px;letter-spacing:.5px">'+catIcon(cat.icon,cat.color,12)+" "+cat.name+"</div>"
         +"</div>"+clipBtn(cat.id,tk)+"</div></div>";
     });
   }
@@ -985,7 +1032,7 @@ function buildSetup(){
       const priLabel=(tk)=>{const pr=PRIORITIES.find(p=>p.id===(tk.priority||4));return pr?pr.emoji+" "+pr.label:"";};
       h+='<div class="s-cat" style="border-color:'+p.lt+'">';
       h+='<div class="s-cat-hdr" data-action="toggle-sec" data-sec="setup_'+cat.id+'" style="cursor:pointer">'
-        +'<span style="font-size:22px">'+cat.icon+"</span>"
+        +'<span style="display:flex">'+catIcon(cat.icon,cat.color,24)+"</span>"
         +'<div style="flex:1"><div class="s-cat-name" style="color:'+p.ac+'">'+cat.name+"</div>"
         +'<div class="s-cat-freq">'+fLabel(cat.freq)+(sortedTasks.length>0?" · "+sortedTasks.length+" task"+(sortedTasks.length!==1?"s":""):"")+"</div></div>"
         +'<div class="s-cat-btns">'
@@ -1107,7 +1154,7 @@ function buildDashInSetup(){
       h+="</div>";
       if(byCat.length){
         h+='<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.4;margin-bottom:8px">By Category</div>';
-        byCat.forEach(c=>{const pct=Math.round(c.done/c.total*100);h+=miniBar(c.icon+" "+c.name,c.done,c.total,pct,PALETTE[c.color||0].ac);});
+        byCat.forEach(c=>{const pct=Math.round(c.done/c.total*100);h+=miniBar(catIcon(c.icon,c.color,13)+" "+c.name,c.done,c.total,pct,PALETTE[c.color||0].ac);});
       }
       h+='<button class="exp-gold" data-action="export-week" style="margin-top:12px">⬇ Download Week CSV</button>';
     }
@@ -1148,7 +1195,7 @@ function buildDashInSetup(){
       const catArr=Object.values(byCatM).filter(c=>c.total>0);
       if(catArr.length){
         h+='<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.4;margin:12px 0 8px">By Category</div>';
-        catArr.forEach(c=>{const pct=Math.round(c.done/c.total*100);h+=miniBar(c.icon+" "+c.name,c.done,c.total,pct,PALETTE[cats.find(x=>x.name===c.name)?.color||0]?.ac);});
+        catArr.forEach(c=>{const pct=Math.round(c.done/c.total*100);h+=miniBar(catIcon(c.icon,c.color,13)+" "+c.name,c.done,c.total,pct,PALETTE[cats.find(x=>x.name===c.name)?.color||0]?.ac);});
       }
       h+='<button class="exp-gold" data-action="export-month" style="margin-top:12px">⬇ Download '+MONTHS[dashM]+' CSV</button>';
     }
@@ -1201,7 +1248,7 @@ function buildDashInSetup(){
       h+=statCard(pct,done,total,customStart+" to "+customEnd);
       if(byCat.length){
         h+='<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.4;margin-bottom:8px">By Category</div>';
-        byCat.forEach(c=>{const p=Math.round(c.done/c.total*100);h+=miniBar(c.icon+" "+c.name,c.done,c.total,p,PALETTE[c.color||0]?.ac);});
+        byCat.forEach(c=>{const p=Math.round(c.done/c.total*100);h+=miniBar(catIcon(c.icon,c.color,13)+" "+c.name,c.done,c.total,p,PALETTE[c.color||0]?.ac);});
       }
       h+='<button class="exp-gold" data-action="export-custom" style="margin-top:12px">⬇ Download Range CSV</button>';
     }
@@ -1318,7 +1365,7 @@ function modalQS(){
   QS.forEach((q,qi)=>{
     const used=existing.has(q.name),p=PALETTE[q.color];
     h+='<button class="qs-btn" style="border-color:'+(used?"#e8e4de":p.lt)+';background:'+(used?"#faf9f7":p.bg)+';opacity:'+(used?".4":"1")+';cursor:'+(used?"default":"pointer")+'" data-action="'+(used?"":"qs-pick")+'" data-qi="'+qi+'">'
-      +'<span style="font-size:22px">'+q.icon+"</span>"
+      +'<span style="display:flex">'+catIcon(q.icon,q.color,24)+"</span>"
       +'<div style="flex:1"><div style="font-size:13px;font-weight:700;color:'+(used?"#aaa":p.ac)+'">'+q.name+"</div>"
       +'<div style="font-size:11px;opacity:.5;margin-top:1px">'+(used?"Already added":q.hint)+"</div></div>"
       +(used?"":'<span style="color:'+p.ac+';font-size:18px">›</span>')
@@ -1339,7 +1386,7 @@ function modalCat(catId){
     +'<div class="mo-lbl">Name</div>'
     +'<input class="mo-inp" id="mcat_name" placeholder="Category name" maxlength="30" value="'+esc(cat.name||"")+'">'
     +'<div class="mo-lbl">Icon</div><div class="igrid">';
-  ICONS.forEach(ic=>{h+='<button class="ichip'+(cat.icon===ic?" active":"")+'" data-icon-pick="'+ic+'">'+ic+"</button>";});
+  ICONS.forEach(ic=>{h+='<button class="ichip'+(cat.icon===ic?" active":"")+'" data-icon-pick="'+ic+'">'+catIcon(ic,cat.color,22)+"</button>";});
   h+='</div><div class="mo-lbl">Color</div><div class="cgrid">';
   PALETTE.forEach((p,i)=>{h+='<div class="csw'+(cat.color===i?" active":"")+'" style="background:'+p.ac+'" data-color-pick="'+i+'"></div>';});
   h+='</div><div class="mo-lbl">Frequency</div>'+freqUI("mcat",true)
