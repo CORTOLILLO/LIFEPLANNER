@@ -162,6 +162,11 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:"Jost
 .pv-task{margin-bottom:8px;padding:12px 14px;border-radius:12px;background:var(--white);border:1px solid #EDE8E2;display:flex;align-items:center;gap:10px}
 .pv-task-meta{font-size:10px;opacity:.4;margin-top:2px;letter-spacing:.3px}
 .pv-empty{font-size:13px;opacity:.35;font-style:italic;padding:8px 2px}
+/* Attachments */
+.clip-btn{background:none;border:none;font-size:16px;opacity:.55;cursor:pointer;flex-shrink:0;padding:0 2px;font-family:inherit}
+.file-box{display:flex;align-items:center;gap:10px;padding:11px 13px;border:1.5px solid var(--greige);border-radius:10px;background:var(--white)}
+.file-box-name{flex:1;font-size:13px;font-weight:300;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-mini{background:none;border:1px solid var(--greige);border-radius:20px;padding:4px 10px;font-size:10px;font-weight:500;color:var(--walnut);cursor:pointer;font-family:"Jost",sans-serif;letter-spacing:.5px;flex-shrink:0}
 @media(min-width:500px){#header,#main{max-width:480px;margin:0 auto;left:0;right:0}#header{left:50%;transform:translateX(-50%);width:480px}.mo-box{max-width:480px}}
 </style>
 </head>
@@ -196,6 +201,7 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:"Jost
   </div>
 </div>
 <input type="file" id="import-file-input" accept=".json" style="display:none"/>
+<input type="file" id="task-file-input" style="display:none"/>
 <div id="main"></div>
 <div class="mo hidden" id="mo"><div class="mo-box" id="mo-box"></div></div>
 
@@ -253,13 +259,22 @@ async function sbGet(id){
 }
 async function sbSet(id,data){
   try{
-    await fetch(SUPABASE_URL+"/rest/v1/planner_data",{
+    const r=await fetch(SUPABASE_URL+"/rest/v1/planner_data",{
       method:"POST",
       headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,
         "Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},
       body:JSON.stringify({id,data,updated_at:new Date().toISOString()})
     });
-  }catch(e){console.error("sbSet error",e);}
+    return r.ok;
+  }catch(e){console.error("sbSet error",e);return false;}
+}
+async function sbDel(id){
+  try{
+    await fetch(SUPABASE_URL+"/rest/v1/planner_data?id=eq."+id,{
+      method:"DELETE",
+      headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY}
+    });
+  }catch(e){console.error("sbDel error",e);}
 }
 
 // ── State ──────────────────────────────────────────────────────────────────────
@@ -270,6 +285,8 @@ let _cats=null,_custom={},_checks={};
 let openRoutine=null; // which routine's task panel is expanded in setup
 let routineSelectTasks=new Set(); // task ids checked in the "Save as Routine" modal
 let customStart=null,customEnd=null,customRangeData=null; // Dashboard "Custom Range" state
+let mFileData=null,mFileRemove=false,mTaskFileMeta=null; // attachment state for the task modal
+const fileCache={}; // attachment contents already downloaded this session
 
 const ls={
   get(k,fb=null){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch{return fb}},
@@ -340,17 +357,9 @@ function fApplies(f,di,slotDateStr){
   if(f.type==="days") return (f.days||[]).includes(di);
   if(f.type==="weekly") return di===(f.day||0);
   if(f.type==="monthly"){
-    // Which day-of-month is being evaluated. Prefer the actual date passed
-    // in; only fall back to reconstructing from the currently-viewed week
-    // if no date was given (older call sites). Previously this always used
-    // the UI's current wkOff/now, which only happened to be correct when
-    // looking at the currently-selected week — every dashboard/export loop
-    // iterates many other weeks, so monthly tasks silently failed to match
-    // on any day outside whatever week the app UI was sitting on.
     let dom;
     if(slotDateStr) dom=parseInt(slotDateStr.split("-")[2],10);
     else{
-      const now=new Date();
       const wkParts=wkKey(wkOff).split("-");
       const d=new Date(parseInt(wkParts[0]),parseInt(wkParts[1])-1,parseInt(wkParts[2])+di);
       dom=d.getDate();
@@ -373,7 +382,6 @@ function fApplies(f,di,slotDateStr){
     if(!f.date||f.month===undefined||!f.year) return false;
     const taskDateStr=f.year+"-"+String(f.month+1).padStart(2,"0")+"-"+String(f.date).padStart(2,"0");
     if(slotDateStr) return taskDateStr===slotDateStr;
-    // fallback if no slotDateStr passed
     const wkParts=wkKey(wkOff).split("-");
     const slotDate=new Date(parseInt(wkParts[0]),parseInt(wkParts[1])-1,parseInt(wkParts[2])+di);
     const computed=slotDate.getFullYear()+"-"+String(slotDate.getMonth()+1).padStart(2,"0")+"-"+String(slotDate.getDate()).padStart(2,"0");
@@ -397,20 +405,11 @@ function catOn(cat,di,wk,day){
 function ord(n){const s=["th","st","nd","rd"],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])}
 
 // ── Routines ───────────────────────────────────────────────────────────────────
-// A routine is a named, saved bundle of tasks (with their own frequencies) that
-// lives inside a category. Only one routine per category can be "active" at a
-// time (cat.activeRoutineId). An active routine's tasks are combined with the
-// category's loose tasks everywhere tasks are shown/counted/exported. An
-// inactive routine's tasks are fully hidden and don't count toward anything,
-// but stay saved untouched until the user edits or deletes them.
 function getActiveRoutine(cat){
   if(!cat||!cat.routines||!cat.routines.length||!cat.activeRoutineId) return null;
   return cat.routines.find(r=>r.id===cat.activeRoutineId)||null;
 }
 function todayStr(){const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");}
-// Record that `rid` (or null for "no routine") became active on `cat`, starting today.
-// This timeline is what lets past days keep showing whichever routine was actually
-// running on them, even after you've since switched to a different one.
 function logRoutineChange(cat,rid){
   cat.routineLog=cat.routineLog||[];
   const t=todayStr();
@@ -418,18 +417,6 @@ function logRoutineChange(cat,rid){
   if(last&&last.start===t) last.routineId=rid;
   else cat.routineLog.push({routineId:rid,start:t});
 }
-// Which routine (if any) was active on a given category on a given date.
-// Uses the recorded timeline when we have one — that's real, permanent data
-// from the moment you first toggle a routine onward, and it's never guessed
-// at or rewritten later. For dates before any timeline entry exists at all
-// (i.e. before the very first toggle since this feature shipped), there is
-// no record of what was active back then, full stop — nothing captured it.
-// Rather than invent an answer (assume everything was active, or assume
-// today's setup was always active), those days simply don't attribute any
-// routine's tasks — only the plain, non-routine tasks count. That can
-// undercount a day that genuinely had a routine running before tracking
-// started, but it will never fabricate a toggled-off routine's tasks
-// appearing somewhere they didn't belong.
 function catAllTasks(cat,dateStr){
   if(!cat) return [];
   const loose=cat.tasks||[];
@@ -440,9 +427,6 @@ function catAllTasks(cat,dateStr){
   const rt=rid?(cat.routines||[]).find(r=>r.id===rid):null;
   return loose.concat(rt?(rt.tasks||[]):[]);
 }
-// Locate a task among a category's loose tasks or ANY of its routines
-// (active or not) — used for edit/delete so you can still manage a task
-// that's currently hidden inside an inactive routine.
 function getTaskById(cat,tid){
   if(!cat) return null;
   let tk=(cat.tasks||[]).find(t=>t.id===tid);
@@ -453,7 +437,6 @@ function getTaskById(cat,tid){
   }
   return null;
 }
-// Like getTaskById, but if a routineId is explicitly known, look there directly.
 function findTaskAndArr(cat,tid,routineId){
   if(routineId){
     const rt=(cat.routines||[]).find(r=>r.id===routineId);
@@ -476,7 +459,6 @@ function catProg(cat,day,wk){
     }));
     return{done,total};
   }
-  // compute actual date string for this day slot
   const _sun=parseWk(wk).sunday;
   const _d=new Date(_sun.getFullYear(),_sun.getMonth(),_sun.getDate()+di);
   const _slotStr=_d.getFullYear()+"-"+String(_d.getMonth()+1).padStart(2,"0")+"-"+String(_d.getDate()).padStart(2,"0");
@@ -539,7 +521,6 @@ function renderHeader(){
   });
 
   const vt=document.getElementById("view-tabs");vt.innerHTML="";
-  // Nav: Day | Schedule | Priorities | Dash
   [["day","📅 Day"],["schedule","🗓 Schedule"],["priorities","🎯 Priorities"]].forEach(([v,l])=>{
     const b=document.createElement("button");
     b.className="vtab"+(view===v?" active":"");b.textContent=l;b.dataset.action="view-"+v;
@@ -599,7 +580,6 @@ function buildDay(){
     (()=>{const now=new Date();const di=DAYS.indexOf(day);const todayDi=now.getDay();const diff=di-todayDi+(wkOff*7);const d=new Date(now.getFullYear(),now.getMonth(),now.getDate()+diff);return (d.getMonth()+1)+"/"+d.getDate();})()
     +"</div></div>"
     +'<div style="display:flex;gap:6px">'
-    
     +'<button class="exp-btn" data-action="export-week">&#x2B07; EXPORT</button>'
     +'</div></div>';
 
@@ -665,13 +645,13 @@ function buildDay(){
         const thisDayDate=new Date(wkSun.getFullYear(),wkSun.getMonth(),wkSun.getDate()+di);
         const thisDayStr=thisDayDate.getFullYear()+"-"+String(thisDayDate.getMonth()+1).padStart(2,"0")+"-"+String(thisDayDate.getDate()).padStart(2,"0");
         if(activeDate){
-          if(thisDayStr===activeDate){h+=fixedRow(cat.id,tk.id,tk.name+(applies?"":" ↻"),chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once");}
-          else if(chk){h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once");}
-        } else if(chk){h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once");}
+          if(thisDayStr===activeDate){h+=fixedRow(cat.id,tk.id,tk.name+(applies?"":" ↻"),chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once",tk.file);}
+          else if(chk){h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once",tk.file);}
+        } else if(chk){h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once",tk.file);}
         return;
       }
-      if(applies){h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once");return;}
-      if(chk) h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once");
+      if(applies){h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once",tk.file);return;}
+      if(chk) h+=fixedRow(cat.id,tk.id,tk.name,chk,p.ac,tk.url,tk.freq&&tk.freq.type==="once",tk.file);
     });
     if(catAllTasks(cat,dayDateStr).filter(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
@@ -701,7 +681,13 @@ function secHdr(cat,done,total,isO){
     +'<span class="chev">&#x203A;</span></button>';
 }
 
-function fixedRow(catId,tkId,name,chk,ac,url,isOnce){
+// Paperclip button that opens a task's attached file
+function clipBtn(catId,tk){
+  if(!tk||!tk.file) return "";
+  return '<button class="clip-btn" data-action="open-file" data-cat="'+catId+'" data-task="'+tk.id+'" aria-label="Open attachment">📎</button>';
+}
+
+function fixedRow(catId,tkId,name,chk,ac,url,isOnce,file){
   const id="row_"+catId+"_"+tkId;
   const bs="padding:10px 4px;border-radius:10px;font-size:9px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.5;flex:1;";
   const cancelBtn='<button data-action="task-flip-cancel" data-row="'+id+'" style="'+bs+'border:1.5px solid var(--greige);background:transparent;color:var(--stone);">✕<br>Cancel</button>';
@@ -732,6 +718,7 @@ function fixedRow(catId,tkId,name,chk,ac,url,isOnce){
     +'<div class="task-front crow" style="margin-bottom:0">'
     +'<button class="cbtn'+(chk?" chk":" hv")+'" style="'+(chk?"background:"+ac+";border-color:"+ac:"border-color:"+ac)+'" data-action="check" data-cat="'+catId+'" data-tk="'+tkId+'">'+(chk?"&#x2713;":"")+"</button>"
     +'<div class="clabel'+(chk?" done":"")+'">'+esc(name)+"</div>"
+    +(file?clipBtn(catId,{id:tkId,file}):"")
     +(url?'<a href="'+esc(url)+'" target="_blank" rel="noopener" style="font-size:16px;text-decoration:none;opacity:.5;flex-shrink:0" onclick="event.stopPropagation()">🔗</a>':"")
     +'</div>'
     +'<div class="task-back" style="display:none;padding:8px 0 2px">'
@@ -776,7 +763,6 @@ function buildPriorities(){
   const _pDate=new Date(_pSun.getFullYear(),_pSun.getMonth(),_pSun.getDate()+di);
   const dayDateStr=_pDate.getFullYear()+"-"+String(_pDate.getMonth()+1).padStart(2,"0")+"-"+String(_pDate.getDate()).padStart(2,"0");
 
-  // Collect all tasks for today with their priority
   const buckets={1:[],2:[],3:[],4:[]};
 
   cats.forEach(cat=>{
@@ -800,7 +786,7 @@ function buildPriorities(){
       }
       if(!show&&!chk) return;
 
-      const prio=tk.priority||4; // default to "Everything Else"
+      const prio=tk.priority||4;
       if(buckets[prio]) buckets[prio].push({tk,cat,chk});
     });
   });
@@ -823,7 +809,6 @@ function buildPriorities(){
       h+='<div class="pv-empty">Nothing here today.</div>';
     } else {
       items.forEach(({tk,cat,chk})=>{
-        const p=PALETTE[cat.color||0];
         h+='<div class="pv-task" style="border-left:3px solid '+prio.color+';opacity:'+(chk?'.5':'1')+'">'
           +'<button class="cbtn'+(chk?" chk":" hv")+'" style="'+(chk?"background:"+prio.color+";border-color:"+prio.color:"border-color:"+prio.color)+'" data-action="check" data-cat="'+cat.id+'" data-tk="'+tk.id+'">'+(chk?"&#x2713;":"")+"</button>"
           +'<div style="flex:1">'
@@ -832,13 +817,13 @@ function buildPriorities(){
           +'</div>'
           +'<div class="pv-task-meta">'+cat.icon+' '+cat.name+(tk.startTime?' · '+fmt12(tk.startTime):'')+'</div>'
           +'</div>'
+          +clipBtn(cat.id,tk)
           +'</div>';
       });
     }
     h+='</div>';
   });
 
-  // Tasks with no priority set (shouldn't happen but just in case)
   return h+'</div>';
 }
 
@@ -908,7 +893,7 @@ function buildSchedule(){
         +'<div style="flex:1">'
         +'<div style="font-size:14px;font-weight:400;color:var(--ink)'+(chk?";text-decoration:line-through;color:var(--stone)":"")+'">'+(tk.url?'<a href="'+esc(tk.url)+'" target="_blank" style="color:inherit;text-decoration:none">'+esc(tk.name)+' 🔗</a>':esc(tk.name))+"</div>"
         +'<div style="font-size:10px;opacity:.4;margin-top:2px;letter-spacing:.5px">'+cat.icon+" "+cat.name+"</div>"
-        +"</div></div></div></div>";
+        +"</div>"+clipBtn(cat.id,tk)+"</div></div></div>";
     });
   }
   if(unscheduled.length){
@@ -920,59 +905,15 @@ function buildSchedule(){
         +'<div style="flex:1">'
         +'<div style="font-size:14px;font-weight:400;color:var(--ink)'+(chk?";text-decoration:line-through;color:var(--stone)":"")+'">'+(tk.url?'<a href="'+esc(tk.url)+'" target="_blank" style="color:inherit;text-decoration:none">'+esc(tk.name)+' 🔗</a>':esc(tk.name))+"</div>"
         +'<div style="font-size:10px;opacity:.4;margin-top:2px;letter-spacing:.5px">'+cat.icon+" "+cat.name+"</div>"
-        +"</div></div></div>";
+        +"</div>"+clipBtn(cat.id,tk)+"</div></div>";
     });
   }
   return h+"<div style='height:40px'></div>";
 }
 
-// ── Dashboard ──────────────────────────────────────────────────────────────────
-function buildDash(){
-  const cats=getCats()||[];
-  const allWks=Object.keys(_checks);
-  const mWks=allWks.filter(k=>{const{month,year}=parseWk(k);return month===dashM&&year===dashY;}).sort();
-  let mDone=0,mTotal=0;const ct={};cats.forEach(c=>{ct[c.id]={done:0,total:0}});
-  const wSums=mWks.map(wk=>{
-    let wd=0,wt=0;
-    DAYS.forEach(d=>cats.forEach(cat=>{const p=catProg(cat,d,wk);wd+=p.done;wt+=p.total;ct[cat.id].done+=p.done;ct[cat.id].total+=p.total;}));
-    mDone+=wd;mTotal+=wt;
-    const{sunday}=parseWk(wk);const e=new Date(sunday);e.setDate(sunday.getDate()+6);
-    return{label:MONTHS[sunday.getMonth()].slice(0,3)+" "+sunday.getDate()+"–"+e.getDate(),done:wd,total:wt};
-  });
-  const now=new Date(),canN=!(dashY===now.getFullYear()&&dashM>=now.getMonth());
-  const mp=mTotal?Math.round((mDone/mTotal)*100):0;
-  let h='<div class="dv"><div class="mnav">'
-    +'<button class="mnav-btn" data-action="dash-prev">‹</button>'
-    +'<div><div class="m-title">'+MONTHS[dashM]+" "+dashY+'</div><div class="m-sub">'+mWks.length+" week"+(mWks.length!==1?"s":"")+" tracked</div></div>"
-    +'<button class="mnav-btn" data-action="dash-next"'+(canN?"":" disabled style=\"opacity:.3;cursor:default\"")+">›</button></div>";
-  if(!mWks.length){h+='<div class="empty"><div style="font-size:44px;margin-bottom:12px">📭</div><div style="font-size:14px">No data for this month yet.</div></div>';}
-  else{
-    h+='<div class="ov-card"><div class="ov-lbl">OVERALL COMPLETION</div><div class="ov-pct">'+mp+'%</div><div class="ov-frac">'+mDone+" of "+mTotal+" tasks</div></div>"
-      +'<button class="exp-gold" data-action="export-month">&#x2B07; EXPORT '+MONTHS[dashM].toUpperCase()+' CSV</button>'
-      +'<div class="sec-ttl">By Category</div>';
-    cats.forEach(cat=>{
-      const p=PALETTE[cat.color||0],{done,total}=ct[cat.id];
-      const pct=total?Math.round((done/total)*100):0;
-      h+='<div class="ccat" style="border:2px solid '+p.lt+'">'
-        +'<div class="ccat-top"><span class="ccat-lbl" style="color:'+p.ac+'">'+cat.icon+" "+cat.name+"</span>"
-        +'<span class="ccat-pct" style="color:'+p.ac+'">'+pct+"%</span></div>"
-        +'<div class="cbar-w"><div class="cbar" style="width:'+pct+'%;background:'+p.ac+'"></div></div>'
-        +'<div class="cfrac">'+done+" of "+total+" tasks</div></div>";
-    });
-    h+='<div class="sec-ttl">By Week</div>';
-    wSums.forEach(({label,done,total})=>{
-      const pct=total?Math.round((done/total)*100):0;
-      h+='<div class="wsc"><div class="wsc-top"><span class="wsc-lbl">'+label+"</span><span class=\"wsc-pct\">"+pct+"%</span></div>"
-        +'<div class="cbar-w"><div class="cbar" style="width:'+pct+'%;background:var(--walnut)"></div></div>'
-        +'<div class="wsc-frac">'+done+"/"+total+" tasks</div></div>";
-    });
-  }
-  return h+"</div>";
-}
-
 // ── Setup View ─────────────────────────────────────────────────────────────────
-let setupOpen=null; // which section is open: "categories"|"data"|"dash"
-let dashSubOpen=null; // which dash sub: "week"|"month"|"year"
+let setupOpen=null;
+let dashSubOpen=null;
 
 function renderSetupSection(sec){
   setupOpen=sec;
@@ -986,7 +927,6 @@ function buildSetup(){
     +'<div class="s-hero"><div class="s-hero-t">⚙️ Settings</div>'
     +'<div class="s-hero-s">Manage your planner.</div></div>';
 
-  // ── CATEGORIES section
   const catsOpen=setupOpen==="categories";
   h+=setupSection("categories","📂","CATEGORIES",catsOpen);
   if(catsOpen){
@@ -1033,7 +973,7 @@ function buildSetup(){
           h+='<div class="s-tasks">';
           sortedTasks.forEach(tk=>{
             h+='<div class="s-task">'
-              +'<div style="flex:1"><div class="s-task-name">'+esc(tk.name)+(tk.rollover?' <span style="font-size:10px;opacity:.5">↻</span>':"")+(tk.url?' <span style="font-size:12px;opacity:.5">🔗</span>':"")+"</div>"
+              +'<div style="flex:1"><div class="s-task-name">'+esc(tk.name)+(tk.rollover?' <span style="font-size:10px;opacity:.5">↻</span>':"")+(tk.url?' <span style="font-size:12px;opacity:.5">🔗</span>':"")+(tk.file?' <span style="font-size:12px;opacity:.5">📎</span>':"")+"</div>"
               +'<div class="s-task-freq">'+fLabel(tk.freq)+" · "+priLabel(tk)+"</div></div>"
               +'<button class="ibtn" data-action="edit-task" data-cat="'+cat.id+'" data-task="'+tk.id+'"><span style="pointer-events:none">✏️</span></button>'
               +'<button class="ibtn" data-action="del-task" data-cat="'+cat.id+'" data-task="'+tk.id+'"><span style="pointer-events:none">🗑️</span></button>'
@@ -1051,18 +991,16 @@ function buildSetup(){
     h+="</div>";
   }
 
-  // ── DATA section
   const dataOpen=setupOpen==="data";
   h+=setupSection("data","💾","DATA",dataOpen);
   if(dataOpen){
     h+='<div style="padding:0 0 16px;display:flex;flex-direction:column;gap:10px">'
-      +'<div style="font-size:12px;color:var(--walnut);line-height:1.6;padding:12px;background:var(--greige);border-radius:10px">Export saves all your categories and tasks. Import restores them from a backup file.</div>'
+      +'<div style="font-size:12px;color:var(--walnut);line-height:1.6;padding:12px;background:var(--greige);border-radius:10px">Export saves all your categories and tasks. Import restores them from a backup file. Attached files stay saved online and aren\'t included in the backup file.</div>'
       +'<button class="done-btn" data-action="export-all" style="background:var(--walnut)">⬇ Export Backup</button>'
       +'<button class="add-cat-btn" data-action="import-all">⬆ Import Backup</button>'
       +"</div>";
   }
 
-  // ── DASH section
   const dashOpen=setupOpen==="dash";
   h+=setupSection("dash","📈","DASHBOARD",dashOpen);
   if(dashOpen){
@@ -1071,7 +1009,6 @@ function buildSetup(){
     h+="</div>";
   }
 
-  // ── GO TO PLANNER
   h+='<button class="done-btn" data-action="go-planner" style="margin-top:8px">✓ Go to Planner</button>';
 
   return h+"</div>";
@@ -1093,7 +1030,6 @@ function buildDashInSetup(){
   const now=new Date();
   let h="";
 
-  // ── WEEK sub-section
   const wkOpen=dashSubOpen==="week";
   h+=dashSubHdr("week","Week",wkOpen);
   if(wkOpen){
@@ -1136,7 +1072,6 @@ function buildDashInSetup(){
     }
   }
 
-  // ── MONTH sub-section
   const moOpen=dashSubOpen==="month";
   h+=dashSubHdr("month","Month",moOpen);
   if(moOpen){
@@ -1148,10 +1083,6 @@ function buildDashInSetup(){
     const daysInMonth=new Date(dashY,dashM+1,0).getDate();
     let mDone=0,mTotal=0;
     const byCatM={};cats.forEach(c=>{byCatM[c.id]={name:c.name,icon:c.icon,color:c.color,done:0,total:0};});
-    // Walk every calendar day of the month (like the CSV export does) rather
-    // than only weeks that happen to have a saved checkmark — otherwise a week
-    // with zero interactions gets silently dropped from both the numerator
-    // and denominator, which is why this used to disagree with the CSV.
     const weekOrder=[],weekTotals={};
     for(let date=1;date<=daysInMonth;date++){
       const d=new Date(dashY,dashM,date);
@@ -1182,7 +1113,6 @@ function buildDashInSetup(){
     }
   }
 
-  // ── YEAR sub-section
   const yrOpen=dashSubOpen==="year";
   h+=dashSubHdr("year","Year",yrOpen);
   if(yrOpen){
@@ -1216,7 +1146,6 @@ function buildDashInSetup(){
     }
   }
 
-  // ── CUSTOM sub-section
   const custOpen=dashSubOpen==="custom";
   h+=dashSubHdr("custom","Custom Range",custOpen);
   if(custOpen){
@@ -1300,7 +1229,7 @@ function buildRoutinesPanel(cat,p){
       h+='<div style="padding:0 12px 12px">';
       (rt.tasks||[]).forEach(tk=>{
         h+='<div class="s-task">'
-          +'<div style="flex:1"><div class="s-task-name">'+esc(tk.name)+'</div>'
+          +'<div style="flex:1"><div class="s-task-name">'+esc(tk.name)+(tk.file?' <span style="font-size:12px;opacity:.5">📎</span>':"")+'</div>'
           +'<div class="s-task-freq">'+fLabel(tk.freq)+'</div></div>'
           +'<button class="ibtn" data-action="edit-routine-task" data-cat="'+cat.id+'" data-routine="'+rt.id+'" data-task="'+tk.id+'"><span style="pointer-events:none">✏️</span></button>'
           +'<button class="ibtn" data-action="del-routine-task" data-cat="'+cat.id+'" data-routine="'+rt.id+'" data-task="'+tk.id+'"><span style="pointer-events:none">🗑️</span></button>'
@@ -1379,6 +1308,24 @@ function modalCat(catId){
   openModal(h);
 }
 
+// Attachment row shown inside the task modal
+function fileBoxHTML(meta){
+  if(!meta){
+    return '<button class="mo-out" data-action="task-file-pick" style="margin-top:0">📎 Attach a File</button>';
+  }
+  return '<div class="file-box">'
+    +'<span style="font-size:18px">📎</span>'
+    +'<div class="file-box-name">'+esc(meta.name)+(meta.size?' <span style="opacity:.45;font-size:11px">· '+fmtSize(meta.size)+'</span>':"")+'</div>'
+    +'<button class="file-mini" data-action="task-file-pick">Replace</button>'
+    +'<button class="file-mini" data-action="task-file-remove" style="color:#b85c52">Remove</button>'
+    +'</div>';
+}
+function fmtSize(b){
+  if(b<1024) return b+" B";
+  if(b<1024*1024) return Math.round(b/1024)+" KB";
+  return (b/1024/1024).toFixed(1)+" MB";
+}
+
 function modalTask(catId,taskId,routineId){
   const cats=getCats()||[];
   const cat=cats.find(c=>c.id===catId)||{tasks:[]};
@@ -1402,6 +1349,7 @@ function modalTask(catId,taskId,routineId){
   }
   task=task||{id:null,name:"",freq:{type:"daily"},rollover:false,url:"",priority:4};
   mFreq=Object.assign({},task.freq||{type:"daily"});
+  mFileData=null;mFileRemove=false;mTaskFileMeta=task.file||null;
   const curPriority=task.priority||4;
   const routineName=mRoutineId?(((cat.routines||[]).find(r=>r.id===mRoutineId)||{}).name||""):"";
 
@@ -1421,6 +1369,9 @@ function modalTask(catId,taskId,routineId){
   h+='</div>'
     +'<div class="mo-lbl">Link (optional)</div>'
     +'<input class="mo-inp" id="mtask_url" type="url" placeholder="https://..." value="'+esc(task.url||"")+'">'
+    +'<div class="mo-lbl">File (optional)</div>'
+    +'<div id="mtask_file_wrap">'+fileBoxHTML(mTaskFileMeta)+'</div>'
+    +'<div style="font-size:11px;opacity:.4;margin-top:6px">Photos, PDFs, documents. Up to 5 MB.</div>'
     +'<div class="mo-lbl">Scheduled Time (optional)</div>'
     +'<div class="mrow">'
     +'<div><div style="font-size:9px;letter-spacing:1.5px;opacity:.5;margin-bottom:6px">START</div>'
@@ -1450,6 +1401,101 @@ function modalTask(catId,taskId,routineId){
   h+='<button class="mo-save" data-action="save-task">Save Task</button>'
     +(taskId?'<button class="mo-del" data-action="del-task-modal">Delete Task</button>':"")
     +'<button class="mo-cancel" data-action="close-modal">Cancel</button>';
+  openModal(h);
+}
+
+// ── Attachments ────────────────────────────────────────────────────────────────
+// Each file is saved as its own row in the same planner_data table
+// (id "file_<something>"), so no extra Supabase setup is needed and your
+// categories data stays small. The task itself only stores the file's name/id.
+const MAX_FILE_BYTES=5*1024*1024;
+function readAsDataURL(f){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>res(r.result);
+    r.onerror=()=>rej(new Error("Couldn't read that file. Try a different one."));
+    r.readAsDataURL(f);
+  });
+}
+function shrinkImage(src){
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    img.onload=()=>{
+      const max=1600;let w=img.width,h=img.height;
+      if(w>max||h>max){const s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
+      const c=document.createElement("canvas");c.width=w;c.height=h;
+      c.getContext("2d").drawImage(img,0,0,w,h);
+      res(c.toDataURL("image/jpeg",0.82));
+    };
+    img.onerror=()=>rej(new Error("img"));
+    img.src=src;
+  });
+}
+async function prepFile(f){
+  const isImg=(f.type||"").startsWith("image/")&&f.type!=="image/gif";
+  if(!isImg&&f.size>MAX_FILE_BYTES) throw new Error("That file is over 5 MB. Try a smaller one.");
+  let data=await readAsDataURL(f);
+  let type=f.type||"application/octet-stream";
+  let name=f.name||"file";
+  if(isImg){
+    // Phone photos are huge — shrink them so they save and load fast
+    try{data=await shrinkImage(data);type="image/jpeg";name=name.replace(/\.[^.]+$/,"")+".jpg";}catch(e){}
+  }
+  const size=Math.round((data.length-data.indexOf(",")-1)*0.75);
+  if(size>MAX_FILE_BYTES) throw new Error("That file is over 5 MB. Try a smaller one.");
+  return{name,type,size,data};
+}
+// Called when a task is saved: uploads a newly picked file, or removes one
+function applyFile(tk){
+  if(mFileData){
+    if(tk.file) sbDel("file_"+tk.file.id);
+    const fid=Date.now()+"_"+Math.random().toString(36).slice(2,8);
+    const payload={name:mFileData.name,type:mFileData.type,data:mFileData.data};
+    fileCache[fid]=payload;
+    sbSet("file_"+fid,payload).then(ok=>{
+      if(!ok) alert("\""+mFileDataName(payload)+"\" didn't finish saving online. Check your connection and attach it again.");
+    });
+    tk.file={id:fid,name:mFileData.name,type:mFileData.type,size:mFileData.size};
+  } else if(mFileRemove&&tk.file){
+    sbDel("file_"+tk.file.id);
+    delete tk.file;
+  }
+  mFileData=null;mFileRemove=false;
+}
+function mFileDataName(p){return p&&p.name?p.name:"Your file";}
+function dataUrlToBlob(d){
+  const comma=d.indexOf(",");
+  const head=d.slice(0,comma),b64=d.slice(comma+1);
+  const mime=(head.match(/data:([^;]+)/)||[])[1]||"application/octet-stream";
+  const bin=atob(b64);const arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  return new Blob([arr],{type:mime});
+}
+async function openAttachment(cid,tid){
+  const cat=(getCats()||[]).find(c=>c.id===cid);
+  const found=cat&&getTaskById(cat,tid);
+  const meta=found&&found.task.file;
+  if(!meta) return;
+  const title='<div class="mo-title" style="word-break:break-word">'+esc(meta.name)+'</div>';
+  openModal(title+'<div style="text-align:center;padding:30px 0;opacity:.5;font-size:13px">Loading file…</div>');
+  let f=fileCache[meta.id];
+  if(!f){f=await sbGet("file_"+meta.id);if(f) fileCache[meta.id]=f;}
+  if(document.getElementById("mo").classList.contains("hidden")) return; // closed while loading
+  if(!f||!f.data){
+    openModal(title+'<div style="font-size:13px;opacity:.6;line-height:1.6;margin-bottom:10px">This file couldn\'t be loaded. If you just attached it, wait a few seconds and try again. Otherwise, edit the task and attach it again.</div>'
+      +'<button class="mo-cancel" data-action="close-modal">Close</button>');
+    return;
+  }
+  let h=title;
+  if((f.type||"").startsWith("image/")){
+    h+='<img src="'+f.data+'" alt="" style="width:100%;border-radius:12px;display:block;margin-bottom:6px">';
+  } else {
+    h+='<div style="text-align:center;font-size:48px;padding:16px 0 4px">📄</div>'
+      +'<div style="text-align:center;font-size:12px;opacity:.45;margin-bottom:6px">'+(meta.size?fmtSize(meta.size):"")+'</div>';
+  }
+  h+='<button class="mo-save" data-action="file-open-full" data-fid="'+meta.id+'">Open</button>'
+    +'<button class="mo-out" data-action="file-save" data-fid="'+meta.id+'">Save or Share</button>'
+    +'<button class="mo-cancel" data-action="close-modal">Close</button>';
   openModal(h);
 }
 
@@ -1483,7 +1529,6 @@ function getActiveRolloverDate(tk,cat){
 }
 
 function taskCreatedBeforeOrOnDay(tk,wk,day){
-  // once tasks always show on their exact date regardless of createdAt
   if(tk.freq&&tk.freq.type==="once") {
     if(tk.endDate){
       const{sunday}=parseWk(wk);const di=DAYS.indexOf(day);
@@ -1551,7 +1596,7 @@ let lastTap={row:null,time:0};
 document.addEventListener("touchend",function(e){
   const row=e.target.closest(".task-row");
   if(!row) return;
-  if(e.target.closest(".cbtn")||e.target.closest("a")||e.target.closest(".task-back")) return;
+  if(e.target.closest(".cbtn")||e.target.closest("a")||e.target.closest(".task-back")||e.target.closest(".clip-btn")) return;
   const now=Date.now();
   if(lastTap.row===row&&now-lastTap.time<350){
     flipRow(row);
@@ -1572,7 +1617,6 @@ function unflipRow(row){
 // ── Event delegation ───────────────────────────────────────────────────────────
 function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
 
-// Track selected priority in modal
 let mPriority=4;
 
 document.addEventListener("click",function(e){
@@ -1615,6 +1659,28 @@ document.addEventListener("click",function(e){
   if(a==="setup"||a==="go-setup"){mode="setup";render();return;}
   if(a==="go-planner"){mode="planner";render();return;}
   if(a==="close-modal"){closeModal();return;}
+
+  // ── Attachments
+  if(a==="task-file-pick"){document.getElementById("task-file-input").click();return;}
+  if(a==="task-file-remove"){
+    mFileData=null;mFileRemove=true;
+    const wrap=document.getElementById("mtask_file_wrap");if(wrap) wrap.innerHTML=fileBoxHTML(null);
+    return;
+  }
+  if(a==="open-file"){e.stopPropagation();openAttachment(btn.dataset.cat,btn.dataset.task);return;}
+  if(a==="file-open-full"){
+    const f=fileCache[btn.dataset.fid];if(!f) return;
+    const url=URL.createObjectURL(dataUrlToBlob(f.data));
+    const w=window.open(url,"_blank");
+    if(!w) shareOrDownload(dataUrlToBlob(f.data),f.name,f.type);
+    return;
+  }
+  if(a==="file-save"){
+    const f=fileCache[btn.dataset.fid];if(!f) return;
+    shareOrDownload(dataUrlToBlob(f.data),f.name,f.type);
+    return;
+  }
+
   if(a.startsWith("view-")){view=a.slice(5);openSec=null;render();return;}
   if(a.startsWith("day-")){
     activeDay=a.slice(4);
@@ -1705,6 +1771,10 @@ document.addEventListener("click",function(e){
   if(a==="del-cat-confirm"){
     const cid=btn.closest("[data-cat]")?.dataset.cat||btn.dataset.cat;
     if(!cid) return;
+    const delCat=(getCats()||[]).find(c=>c.id===cid);
+    if(delCat){
+      (delCat.tasks||[]).concat(...(delCat.routines||[]).map(r=>r.tasks||[])).forEach(t=>{if(t.file) sbDel("file_"+t.file.id);});
+    }
     saveCats((getCats()||[]).filter(c=>c.id!==cid));
     closeModal();renderMain();return;
   }
@@ -1743,7 +1813,6 @@ document.addEventListener("click",function(e){
         mFreq.month=parseInt(parts[1])-1;
         mFreq.date=parseInt(parts[2]);
       } else {
-        // fallback to today if date picker empty (iOS issue)
         const now=new Date();
         mFreq.year=now.getFullYear();
         mFreq.month=now.getMonth();
@@ -1768,11 +1837,13 @@ document.addEventListener("click",function(e){
       if(tk){
         const endDateVal2=((document.getElementById("mtask_enddate")||{}).value||"").trim();
         tk.name=name.trim();tk.freq=Object.assign({},mFreq);tk.rollover=rollover;tk.url=url;tk.startTime=startTime;tk.endTime=endTime;tk.priority=priority;tk.endDate=endDateVal2||undefined;
+        applyFile(tk);
         if(moveToCat&&!targetRoutine){cat.tasks=cat.tasks.filter(t=>t.id!==mTaskId);const newCat=cats.find(c=>c.id===moveToCat);if(newCat)newCat.tasks.push(tk);}
       }
     } else {
       const endDateVal=((document.getElementById("mtask_enddate")||{}).value||"").trim();
       const newTask={id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover,url,startTime,endTime,priority,endDate:endDateVal||undefined,createdAt:(()=>{const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");})()};
+      applyFile(newTask);
       if(targetRoutine){targetRoutine.tasks=targetRoutine.tasks||[];targetRoutine.tasks.push(newTask);}
       else{cat.tasks.push(newTask);}
     }
@@ -1832,11 +1903,14 @@ document.addEventListener("click",function(e){
     const cid=btn.dataset.cat,tid=btn.dataset.task,rid=btn.dataset.routine||null;
     const cats=getCats()||[];const cat=cats.find(c=>c.id===cid);
     const found=cat&&findTaskAndArr(cat,tid,rid);
-    if(found){const idx=found.arr.indexOf(found.task);if(idx>=0) found.arr.splice(idx,1);}
+    if(found){
+      if(found.task.file) sbDel("file_"+found.task.file.id);
+      const idx=found.arr.indexOf(found.task);if(idx>=0) found.arr.splice(idx,1);
+    }
     Object.keys(_checks).forEach(wk=>{
       Object.keys(_checks[wk]).forEach(k=>{if(k.includes(":"+cid+":"+tid))delete _checks[wk][k];});
-      sbSet("all_checks",_checks);
     });
+    sbSet("all_checks",_checks);
     saveCats(cats);closeModal();renderMain();return;
   }
   if(a==="cat-up"||a==="cat-dn"){
@@ -1905,6 +1979,7 @@ document.addEventListener("click",function(e){
     if(!cat) return;
     const rt=(cat.routines||[]).find(r=>r.id===rid);
     const taskIds=rt?(rt.tasks||[]).map(t=>t.id):[];
+    if(rt) (rt.tasks||[]).forEach(t=>{if(t.file) sbDel("file_"+t.file.id);});
     cat.routines=(cat.routines||[]).filter(r=>r.id!==rid);
     if(cat.activeRoutineId===rid) cat.activeRoutineId=null;
     taskIds.forEach(tid=>{
@@ -1932,6 +2007,8 @@ document.addEventListener("click",function(e){
     const cats=getCats()||[];const cat=cats.find(c=>c.id===cid);
     const rt=cat&&(cat.routines||[]).find(r=>r.id===rid);
     if(!rt) return;
+    const gone=(rt.tasks||[]).find(t=>t.id===tid);
+    if(gone&&gone.file) sbDel("file_"+gone.file.id);
     rt.tasks=(rt.tasks||[]).filter(t=>t.id!==tid);
     Object.keys(_checks).forEach(wk=>{
       Object.keys(_checks[wk]).forEach(k=>{if(k.includes(":"+cid+":"+tid))delete _checks[wk][k];});
@@ -1979,6 +2056,24 @@ document.addEventListener("click",function(e){
   }
 });
 
+// File picked for a task
+document.getElementById("task-file-input").addEventListener("change",async function(e){
+  const f=e.target.files[0];e.target.value="";
+  if(!f) return;
+  const wrap=document.getElementById("mtask_file_wrap");
+  if(wrap) wrap.innerHTML='<div class="file-box"><span style="font-size:18px">⏳</span><div class="file-box-name" style="opacity:.6">Preparing '+esc(f.name)+'…</div></div>';
+  try{
+    mFileData=await prepFile(f);
+    mFileRemove=false;
+    const w2=document.getElementById("mtask_file_wrap");
+    if(w2) w2.innerHTML=fileBoxHTML({name:mFileData.name,size:mFileData.size});
+  }catch(err){
+    alert(err.message||"Couldn't attach that file.");
+    const w2=document.getElementById("mtask_file_wrap");
+    if(w2) w2.innerHTML=fileBoxHTML(mFileData?{name:mFileData.name,size:mFileData.size}:(mFileRemove?null:mTaskFileMeta));
+  }
+});
+
 // write-in blur saving
 document.addEventListener("blur",function(e){
   if(!e.target.classList.contains("wi-inp")) return;
@@ -1997,11 +2092,6 @@ document.addEventListener("blur",function(e){
 },true);
 
 // ── Export ─────────────────────────────────────────────────────────────────────
-// Tries the native Share Sheet first — this is what actually works reliably on
-// iOS Safari and in-app browsers (including the one inside the Claude app),
-// which frequently ignore the `download` attribute on links entirely, whether
-// it's a data: URI or a Blob URL. Falls back to a plain Blob download link,
-// and as a last resort opens the content in a new tab so it can be saved manually.
 async function shareOrDownload(content,filename,mimeType){
   try{
     const file=new File([content],filename,{type:mimeType});
@@ -2052,9 +2142,6 @@ function getTasksForDay(wk,day){
         :fApplies(tk.freq,di,dateStr);
       if(!taskCreatedBeforeOrOnDay(tk,wk,day)) return;
       const pr=PRIORITIES.find(p=>p.id===(tk.priority||4));
-      // Rollover tasks only count on the single day they're actually "due"
-      // (or the day they were checked) — matching catProg's dashboard logic,
-      // so a carried-forward task isn't counted once per calendar day.
       if(tk.rollover){
         const activeDate=getActiveRolloverDate(tk,cat);
         if(activeDate){
@@ -2073,11 +2160,8 @@ function getTasksForDay(wk,day){
 }
 function exportWeek(){
   const wk=wkKey();
-  const{sunday}=parseWk(wk);
-  const end=new Date(sunday);end.setDate(sunday.getDate()+6);
   const rows=[["Date","Day","Category","Task","Priority","Completed"]];
   DAYS.forEach((day)=>{
-    const sun=sunday;
     getTasksForDay(wk,day).forEach(r=>rows.push(r));
   });
   dlCSV(rows,"life-planner-week-"+wk+".csv");
@@ -2181,7 +2265,6 @@ function migrateLegacyChecks(){
 }
 
 async function exportAll(){
-  // Use in-memory cats (already loaded from Supabase on boot)
   const cats=_cats||[];
   const dateStr=(()=>{const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");})();
   const data={
@@ -2198,7 +2281,6 @@ async function handleImport(e){
   reader.onload=async function(ev){
     try{
       const data=JSON.parse(ev.target.result);
-      // Support new format (categories) and old localStorage format (planner_cats)
       const cats=data.categories||data.planner_cats||null;
       if(!cats||!Array.isArray(cats)||cats.length===0){
         alert("This backup file doesn't contain valid planner data.");
