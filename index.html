@@ -9,39 +9,43 @@
 <link rel="apple-touch-icon" href="icon.png"/>
 <meta name="theme-color" content="#D9D2C6"/>
 <title>Life Planner</title>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Josefin+Sans:wght@300;400;500;600&family=Italiana&display=swap" rel="stylesheet"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --mocha:#6B5B4E;--walnut:#9E8B7D;--stone:#C4B5A8;--greige:#D9D2C6;--ivory:#F5F2EC;
-  --ink:#5C4F45;--muted:#9E8B7D;--cream:#F5F2EC;--white:#FDFCFA;--header:#D9D2C6;
+  --sans:"Josefin Sans",sans-serif;--ink:#5C4F45;--muted:#9E8B7D;--cream:#F5F2EC;--white:#FDFCFA;--header:#D9D2C6;
 }
-html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:"Jost",sans-serif;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:var(--sans);-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
 #header{position:fixed;top:0;left:0;right:0;z-index:200;background:var(--greige);color:var(--mocha);padding:env(safe-area-inset-top,0px) 18px 0;box-shadow:0 2px 16px rgba(180,165,150,.3)}
 #header-top{display:flex;justify-content:space-between;align-items:flex-start;padding:16px 0 10px}
 .app-sub{font-size:9px;letter-spacing:4px;opacity:.55;text-transform:uppercase;margin-bottom:3px;font-weight:400;color:var(--walnut)}
-.app-title{font-family:"Cormorant Garamond",serif;font-size:26px;font-weight:600;letter-spacing:.5px;font-style:italic;color:var(--mocha)}
+.app-title{font-family:"Italiana",serif;font-size:30px;font-weight:400;letter-spacing:1px;line-height:1.05;color:var(--mocha)}
 #week-nav{text-align:right}
 #week-label{font-size:10px;opacity:.6;margin-bottom:7px;letter-spacing:.5px;color:var(--walnut)}
 #nav-btns{display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap}
-.nav-btn{background:rgba(255,255,255,.5);border:1px solid rgba(180,165,150,.4);color:var(--mocha);border-radius:20px;padding:4px 12px;font-size:10px;cursor:pointer;font-family:"Jost",sans-serif;letter-spacing:.5px}
-.setup-btn{background:rgba(255,255,255,.6);border:1px solid rgba(180,165,150,.5);color:var(--mocha);border-radius:20px;padding:4px 12px;font-size:11px;cursor:pointer;font-family:"Jost",sans-serif;font-weight:500}
+.nav-btn{background:rgba(255,255,255,.5);border:1px solid rgba(180,165,150,.4);color:var(--mocha);border-radius:20px;padding:4px 12px;font-size:10px;cursor:pointer;font-family:var(--sans);letter-spacing:.5px}
+.setup-btn{background:rgba(255,255,255,.6);border:1px solid rgba(180,165,150,.5);color:var(--mocha);border-radius:20px;padding:4px 12px;font-size:11px;cursor:pointer;font-family:var(--sans);font-weight:500}
 #view-tabs{display:flex;gap:4px;margin-bottom:10px}
-.vtab{flex:1;padding:7px 0;border-radius:20px;border:none;cursor:pointer;font-size:10px;font-weight:500;letter-spacing:1px;text-transform:uppercase;font-family:"Jost",sans-serif;background:rgba(255,255,255,.35);color:var(--walnut);transition:all .2s}
+.vtab{flex:1;padding:7px 0;border-radius:20px;border:none;cursor:pointer;font-size:10px;font-weight:500;letter-spacing:1px;text-transform:uppercase;font-family:var(--sans);background:rgba(255,255,255,.35);color:var(--walnut);transition:all .2s}
 .vtab.active{background:var(--ivory);color:var(--mocha);box-shadow:0 1px 6px rgba(180,165,150,.3)}
 #day-tabs{display:flex;gap:5px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none}
 #day-tabs::-webkit-scrollbar{display:none}
-.dtab{min-width:50px;flex-shrink:0;padding:6px 3px;border-radius:10px;border:1px solid transparent;background:rgba(255,255,255,.25);color:rgba(92,79,69,.45);cursor:pointer;text-align:center;font-family:"Jost",sans-serif}
+.dtab{min-width:50px;flex-shrink:0;padding:6px 3px;border-radius:10px;border:1px solid transparent;background:rgba(255,255,255,.25);color:rgba(92,79,69,.45);cursor:pointer;text-align:center;font-family:var(--sans)}
 .dtab.today{background:rgba(255,255,255,.5);color:var(--mocha)}
 .dtab.active{border-color:var(--walnut);background:rgba(255,255,255,.7);color:var(--mocha)}
 .dtab-name{font-size:9px;letter-spacing:1.5px;font-weight:500;margin-bottom:2px;text-transform:uppercase}
 .dtab-today{font-size:7px;opacity:.65;margin-bottom:2px;letter-spacing:1px}
+.dtab.cal{padding:8px 3px}
+.dtab.cal .dtab-name{font-weight:400;letter-spacing:1px;margin-bottom:0}
+.dtab-num{font-family:var(--sans);font-size:18px;font-weight:400;line-height:1;margin:5px 0;font-variant-numeric:tabular-nums}
+.dtab-mo{font-size:9px;letter-spacing:1px;font-weight:400;text-transform:uppercase}
 .ring{width:28px;height:28px;border-radius:50%;margin:2px auto 0;display:flex;align-items:center;justify-content:center}
 .ring-in{width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:600;color:var(--mocha)}
 #main{padding-bottom:80px}
 .sec-card{margin:0 14px 10px;border-radius:14px;overflow:hidden;border:1px solid var(--lt,#E8E2DA);background:var(--white)}
 .sec-card.open{border-color:var(--ac,#C4B5A8);border-width:1.5px}
-.sec-hdr{width:100%;padding:14px 16px;background:var(--white);border:none;display:flex;align-items:center;gap:10px;cursor:pointer;text-align:left;font-family:"Jost",sans-serif}
+.sec-hdr{width:100%;padding:14px 16px;background:var(--white);border:none;display:flex;align-items:center;gap:10px;cursor:pointer;text-align:left;font-family:var(--sans)}
 .sec-card.open .sec-hdr{background:var(--bg,#FAF8F5)}
 .sec-icon{font-size:18px}
 .sec-name{font-size:10px;font-weight:600;letter-spacing:2.5px;color:var(--ac);text-transform:uppercase}
@@ -52,19 +56,19 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:"Jost
 .sec-body{display:none;padding:6px 16px 16px;background:var(--bg,#FAF8F5)}
 .sec-card.open .sec-body{display:block}
 .crow{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.cbtn{width:24px;height:24px;border-radius:50%;flex-shrink:0;border:1.5px solid #D9D2C6;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;color:var(--white);font-family:"Jost",sans-serif}
+.cbtn{width:24px;height:24px;border-radius:50%;flex-shrink:0;border:1.5px solid #D9D2C6;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;color:var(--white);font-family:var(--sans)}
 .cbtn.hv{border-color:var(--ac)}
 .cbtn.chk{background:var(--ac);border-color:var(--ac)}
 .clabel{flex:1;font-size:14px;min-height:20px;color:var(--ink);font-weight:300;letter-spacing:.2px}
 .clabel.done{text-decoration:line-through;color:var(--stone)}
 .clabel.empty{color:var(--stone);font-style:italic;cursor:text}
-.wi-inp{flex:1;border:none;border-bottom:1.5px solid var(--ac,#C4B5A8);background:transparent;font-size:14px;padding:2px 0;outline:none;color:var(--ink);font-family:"Jost",sans-serif;font-weight:300}
+.wi-inp{flex:1;border:none;border-bottom:1.5px solid var(--ac,#C4B5A8);background:transparent;font-size:14px;padding:2px 0;outline:none;color:var(--ink);font-family:var(--sans);font-weight:300}
 .hab-lbl{font-size:9px;letter-spacing:2.5px;font-weight:600;color:var(--ac);margin:10px 0 8px;text-transform:uppercase}
-.more-btn{width:100%;margin-top:4px;padding:9px;border-radius:8px;border:1.5px dashed var(--stone);background:transparent;color:var(--walnut);font-size:11px;font-weight:500;letter-spacing:1px;cursor:pointer;font-family:"Jost",sans-serif;text-transform:uppercase}
+.more-btn{width:100%;margin-top:4px;padding:9px;border-radius:8px;border:1.5px dashed var(--stone);background:transparent;color:var(--walnut);font-size:11px;font-weight:500;letter-spacing:1px;cursor:pointer;font-family:var(--sans);text-transform:uppercase}
 .wv,.dv{padding:14px 14px 80px}
 .sec-ttl{font-size:9px;letter-spacing:3px;text-transform:uppercase;opacity:.4;margin-bottom:10px;margin-top:18px;font-weight:500}
 .sec-ttl:first-child{margin-top:0}
-.dcard{width:100%;margin-bottom:10px;padding:14px 16px;border-radius:14px;border:1px solid #EDE8E2;background:var(--white);cursor:pointer;text-align:left;display:flex;align-items:center;gap:14px;font-family:"Jost",sans-serif;box-shadow:0 1px 6px rgba(180,165,150,.1)}
+.dcard{width:100%;margin-bottom:10px;padding:14px 16px;border-radius:14px;border:1px solid #EDE8E2;background:var(--white);cursor:pointer;text-align:left;display:flex;align-items:center;gap:14px;font-family:var(--sans);box-shadow:0 1px 6px rgba(180,165,150,.1)}
 .dcard.tod{background:var(--greige);border-color:var(--stone);box-shadow:0 4px 16px rgba(180,165,150,.3)}
 .dcard-name{font-family:"Cormorant Garamond",serif;font-size:18px;font-weight:600;color:var(--ink);letter-spacing:.3px}
 .dcard.tod .dcard-name{color:var(--mocha)}
@@ -84,10 +88,10 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:"Jost
 .cbar-w{height:3px;background:var(--greige);border-radius:2px;overflow:hidden;opacity:.5}
 .cbar{height:100%;border-radius:2px}
 .cfrac{font-size:10px;opacity:.38;margin-top:6px;letter-spacing:.3px}
-.exp-btn{background:var(--walnut);color:var(--ivory);border:none;border-radius:20px;padding:8px 16px;font-size:10px;cursor:pointer;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;font-family:"Jost",sans-serif;white-space:nowrap}
-.exp-gold{width:100%;background:var(--walnut);color:var(--ivory);border:none;border-radius:10px;padding:13px;font-size:11px;cursor:pointer;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;font-family:"Jost",sans-serif;margin-bottom:18px}
+.exp-btn{background:var(--walnut);color:var(--ivory);border:none;border-radius:20px;padding:8px 16px;font-size:10px;cursor:pointer;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;font-family:var(--sans);white-space:nowrap}
+.exp-gold{width:100%;background:var(--walnut);color:var(--ivory);border:none;border-radius:10px;padding:13px;font-size:11px;cursor:pointer;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;font-family:var(--sans);margin-bottom:18px}
 .mnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
-.mnav-btn{background:var(--white);color:var(--walnut);border:1px solid #EDE8E2;border-radius:20px;padding:7px 16px;font-size:16px;cursor:pointer;font-family:"Jost",sans-serif}
+.mnav-btn{background:var(--white);color:var(--walnut);border:1px solid #EDE8E2;border-radius:20px;padding:7px 16px;font-size:16px;cursor:pointer;font-family:var(--sans)}
 .m-title{font-family:"Cormorant Garamond",serif;font-size:24px;font-weight:600;text-align:center;letter-spacing:.5px;font-style:italic;color:var(--mocha)}
 .m-sub{font-size:10px;opacity:.38;text-align:center;margin-top:2px;letter-spacing:.5px}
 .ov-card{background:var(--greige);border-radius:16px;padding:24px;margin-bottom:14px;text-align:center}
@@ -119,22 +123,22 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:"Jost
 .s-task:last-child{border-bottom:none}
 .s-task-name{flex:1;font-size:13px;font-weight:300}
 .s-task-freq{font-size:10px;opacity:.4;letter-spacing:.3px}
-.add-cat-btn{width:100%;padding:14px;border-radius:14px;border:1.5px dashed var(--stone);background:transparent;color:var(--stone);font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:"Jost",sans-serif}
-.done-btn{width:100%;padding:16px;border-radius:14px;border:none;background:var(--walnut);color:var(--ivory);font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-family:"Jost",sans-serif}
+.add-cat-btn{width:100%;padding:14px;border-radius:14px;border:1.5px dashed var(--stone);background:transparent;color:var(--stone);font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)}
+.done-btn{width:100%;padding:16px;border-radius:14px;border:none;background:var(--walnut);color:var(--ivory);font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)}
 /* Modal */
 .mo{position:fixed;inset:0;background:rgba(180,165,150,.45);z-index:500;display:flex;align-items:flex-end;justify-content:center}
 .mo.hidden{display:none}
 .mo-box{background:var(--ivory);border-radius:24px 24px 0 0;padding:26px 20px 44px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto}
 .mo-title{font-family:"Cormorant Garamond",serif;font-size:24px;font-weight:600;margin-bottom:20px;font-style:italic;color:var(--mocha)}
 .mo-lbl{font-size:9px;letter-spacing:2.5px;font-weight:500;opacity:.5;text-transform:uppercase;margin-bottom:8px;margin-top:18px;color:var(--mocha)}
-.mo-inp{width:100%;border:1.5px solid var(--greige);border-radius:10px;padding:11px 13px;font-size:14px;font-family:"Jost",sans-serif;outline:none;background:var(--white);color:var(--ink);font-weight:300}
+.mo-inp{width:100%;border:1.5px solid var(--greige);border-radius:10px;padding:11px 13px;font-size:14px;font-family:var(--sans);outline:none;background:var(--white);color:var(--ink);font-weight:300}
 .mo-inp:focus{border-color:var(--walnut)}
 .mo-inp.sm{font-size:13px;padding:8px 11px}
 .fgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-top:4px}
-.fbtn{padding:10px 6px;border-radius:10px;border:1.5px solid var(--greige);background:var(--white);font-size:11px;font-weight:500;letter-spacing:.5px;cursor:pointer;font-family:"Jost",sans-serif;text-align:center;color:var(--walnut)}
+.fbtn{padding:10px 6px;border-radius:10px;border:1.5px solid var(--greige);background:var(--white);font-size:11px;font-weight:500;letter-spacing:.5px;cursor:pointer;font-family:var(--sans);text-align:center;color:var(--walnut)}
 .fbtn.active{border-color:var(--walnut);background:var(--greige);color:var(--mocha)}
 .dgrid{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
-.dchip{padding:6px 12px;border-radius:20px;border:1.5px solid var(--greige);background:var(--white);font-size:11px;font-weight:500;cursor:pointer;font-family:"Jost",sans-serif;color:var(--walnut);letter-spacing:.5px}
+.dchip{padding:6px 12px;border-radius:20px;border:1.5px solid var(--greige);background:var(--white);font-size:11px;font-weight:500;cursor:pointer;font-family:var(--sans);color:var(--walnut);letter-spacing:.5px}
 .dchip.active{border-color:var(--walnut);background:var(--greige);color:var(--mocha)}
 .cgrid{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
 .csw{width:32px;height:32px;border-radius:50%;cursor:pointer;border:2px solid transparent}
@@ -142,15 +146,15 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:"Jost
 .igrid{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
 .ichip{width:40px;height:40px;border-radius:10px;border:1.5px solid var(--greige);background:var(--white);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .ichip.active{border-color:var(--walnut);background:rgba(217,210,198,.3)}
-.mo-save{width:100%;padding:14px;border-radius:12px;border:none;background:var(--walnut);color:var(--ivory);font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-family:"Jost",sans-serif;margin-top:22px}
-.mo-cancel{width:100%;padding:12px;border-radius:12px;border:1.5px solid var(--greige);background:transparent;color:var(--stone);font-size:11px;font-weight:500;letter-spacing:1px;cursor:pointer;font-family:"Jost",sans-serif;margin-top:8px;text-transform:uppercase}
-.mo-del{width:100%;padding:12px;border-radius:12px;border:none;background:#fdf0ee;color:#b85c52;font-size:11px;font-weight:500;letter-spacing:1px;cursor:pointer;font-family:"Jost",sans-serif;margin-top:8px;text-transform:uppercase}
-.mo-out{width:100%;padding:14px;border-radius:12px;border:1.5px solid var(--greige);background:var(--white);color:var(--mocha);font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:"Jost",sans-serif;margin-top:8px}
-.qs-btn{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;border:1px solid var(--greige);background:var(--white);cursor:pointer;text-align:left;width:100%;font-family:"Jost",sans-serif;margin-bottom:8px}
+.mo-save{width:100%;padding:14px;border-radius:12px;border:none;background:var(--walnut);color:var(--ivory);font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-family:var(--sans);margin-top:22px}
+.mo-cancel{width:100%;padding:12px;border-radius:12px;border:1.5px solid var(--greige);background:transparent;color:var(--stone);font-size:11px;font-weight:500;letter-spacing:1px;cursor:pointer;font-family:var(--sans);margin-top:8px;text-transform:uppercase}
+.mo-del{width:100%;padding:12px;border-radius:12px;border:none;background:#fdf0ee;color:#b85c52;font-size:11px;font-weight:500;letter-spacing:1px;cursor:pointer;font-family:var(--sans);margin-top:8px;text-transform:uppercase}
+.mo-out{width:100%;padding:14px;border-radius:12px;border:1.5px solid var(--greige);background:var(--white);color:var(--mocha);font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:var(--sans);margin-top:8px}
+.qs-btn{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;border:1px solid var(--greige);background:var(--white);cursor:pointer;text-align:left;width:100%;font-family:var(--sans);margin-bottom:8px}
 .mrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
 /* Priority picker */
 .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
-.pbtn{padding:12px 8px;border-radius:12px;border:1.5px solid var(--greige);background:var(--white);font-size:11px;font-weight:500;cursor:pointer;font-family:"Jost",sans-serif;text-align:center;color:var(--walnut);line-height:1.4}
+.pbtn{padding:12px 8px;border-radius:12px;border:1.5px solid var(--greige);background:var(--white);font-size:11px;font-weight:500;cursor:pointer;font-family:var(--sans);text-align:center;color:var(--walnut);line-height:1.4}
 .pbtn.active{border-color:var(--walnut);background:var(--greige);color:var(--mocha)}
 /* Priorities view */
 .pv{padding:14px 14px 80px}
@@ -166,7 +170,7 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:"Jost
 .clip-btn{background:none;border:none;font-size:16px;opacity:.55;cursor:pointer;flex-shrink:0;padding:0 2px;font-family:inherit}
 .file-box{display:flex;align-items:center;gap:10px;padding:11px 13px;border:1.5px solid var(--greige);border-radius:10px;background:var(--white)}
 .file-box-name{flex:1;font-size:13px;font-weight:300;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.file-mini{background:none;border:1px solid var(--greige);border-radius:20px;padding:4px 10px;font-size:10px;font-weight:500;color:var(--walnut);cursor:pointer;font-family:"Jost",sans-serif;letter-spacing:.5px;flex-shrink:0}
+.file-mini{background:none;border:1px solid var(--greige);border-radius:20px;padding:4px 10px;font-size:10px;font-weight:500;color:var(--walnut);cursor:pointer;font-family:var(--sans);letter-spacing:.5px;flex-shrink:0}
 @media(min-width:500px){#header,#main{max-width:480px;margin:0 auto;left:0;right:0}#header{left:50%;transform:translateX(-50%);width:480px}.mo-box{max-width:480px}}
 </style>
 </head>
@@ -180,13 +184,13 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:"Jost
   <div id="day-tabs"></div>
 </div>
 <style>
-#pin-screen{position:fixed;inset:0;background:var(--ivory);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 30px;font-family:"Jost",sans-serif}
+#pin-screen{position:fixed;inset:0;background:var(--ivory);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 30px;font-family:var(--sans)}
 .pin-title{font-family:"Cormorant Garamond",serif;font-size:32px;font-weight:600;font-style:italic;color:var(--mocha);margin-bottom:6px}
 .pin-sub{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--stone);margin-bottom:40px}
 .pin-input-wrap{display:flex;flex-direction:column;align-items:center;gap:16px;width:100%;max-width:260px}
-#pin-input{width:100%;text-align:center;font-size:28px;letter-spacing:12px;border:none;border-bottom:2px solid var(--greige);background:transparent;outline:none;color:var(--mocha);font-family:"Jost",sans-serif;padding:8px 0;-webkit-text-security:disc}
+#pin-input{width:100%;text-align:center;font-size:28px;letter-spacing:12px;border:none;border-bottom:2px solid var(--greige);background:transparent;outline:none;color:var(--mocha);font-family:var(--sans);padding:8px 0;-webkit-text-security:disc}
 #pin-error{font-size:12px;color:#c0392b;min-height:16px;letter-spacing:.5px}
-#pin-submit{width:100%;padding:14px;border-radius:14px;border:none;background:var(--walnut);color:var(--ivory);font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-family:"Jost",sans-serif}
+#pin-submit{width:100%;padding:14px;border-radius:14px;border:none;background:var(--walnut);color:var(--ivory);font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)}
 .pin-flower{font-size:44px;margin-bottom:16px}
 </style>
 
@@ -550,11 +554,13 @@ function renderHeader(){
         b.innerHTML='<div class="dtab-name">'+d.slice(0,3).toUpperCase()+'</div>'
           +'<div style="font-size:8px;opacity:.5;margin-bottom:1px;letter-spacing:.3px">'+dateStr+'</div>'
           +(isT?'<div class="dtab-today">TODAY</div>':"")
-          +(total>0?'<div class="ring" style="background:conic-gradient(#B7A996 '+pct+'%,rgba(245,242,236,.15) 0)"><div class="ring-in">'+pct+'%</div></div>':'<div style="height:30px"></div>');
+          +(total>0?'<div class="ring" style="background:conic-gradient(#B7A996 '+pct+'%,rgba(245,242,236,.15) 0)"><div class="ring-in">'+pct+'%</div></div>':'<div class="ring" style="border:1.5px dashed rgba(158,139,125,.35)"><div class="ring-in" style="background:transparent;opacity:.5">–</div></div>');
       } else {
+        // Calendar-page style: day name, date number, month (or TODAY)
+        b.classList.add("cal");
         b.innerHTML='<div class="dtab-name">'+d.slice(0,3).toUpperCase()+'</div>'
-          +'<div style="font-size:8px;opacity:.5;margin-bottom:1px;letter-spacing:.3px">'+dateStr+'</div>'
-          +(isT?'<div class="dtab-today">TODAY</div>':'<div style="height:16px"></div>');
+          +'<div class="dtab-num">'+dayDate.getDate()+'</div>'
+          +'<div class="dtab-mo">'+(isT?"Today":MONTHS[dayDate.getMonth()].slice(0,3))+'</div>';
       }
       dt.appendChild(b);
     });
@@ -694,7 +700,7 @@ function clipBtn(catId,tk){
 
 function fixedRow(catId,tkId,name,chk,ac,url,isOnce,file){
   const id="row_"+catId+"_"+tkId;
-  const bs="padding:10px 4px;border-radius:10px;font-size:9px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:Jost,sans-serif;line-height:1.5;flex:1;";
+  const bs="padding:10px 4px;border-radius:10px;font-size:9px;font-weight:600;letter-spacing:.5px;cursor:pointer;font-family:var(--sans);line-height:1.5;flex:1;";
   const cancelBtn='<button data-action="task-flip-cancel" data-row="'+id+'" style="'+bs+'border:1.5px solid var(--greige);background:transparent;color:var(--stone);">✕<br>Cancel</button>';
   let backContent;
   if(isOnce){
@@ -1001,7 +1007,7 @@ function buildSetup(){
   if(dispOpen){
     const on=showDayProgress();
     h+='<div style="padding:0 0 16px">'
-      +'<button data-action="toggle-day-progress" style="width:100%;display:flex;align-items:center;gap:12px;padding:14px;background:var(--white);border:1px solid #EDE8E2;border-radius:12px;cursor:pointer;text-align:left;font-family:Jost,sans-serif">'
+      +'<button data-action="toggle-day-progress" style="width:100%;display:flex;align-items:center;gap:12px;padding:14px;background:var(--white);border:1px solid #EDE8E2;border-radius:12px;cursor:pointer;text-align:left;font-family:var(--sans)">'
       +'<div style="flex:1"><div style="font-size:13px;font-weight:500;color:var(--mocha)">Show progress on day tiles</div>'
       +'<div style="font-size:11px;opacity:.5;margin-top:2px">The % rings on the days at the top</div></div>'
       +'<span style="flex-shrink:0;width:40px;height:22px;border-radius:20px;background:'+(on?"var(--walnut)":"#DDD5CC")+';position:relative;display:block;pointer-events:none">'
@@ -1035,7 +1041,7 @@ function buildSetup(){
 
 function setupSection(id,icon,label,isOpen){
   return '<div style="background:var(--white);border-radius:14px;border:1px solid #EDE8E2;margin-bottom:10px;overflow:hidden">'
-    +'<button style="width:100%;padding:16px;background:'+(isOpen?"var(--greige)":"var(--white)")+';border:none;display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;font-family:Jost,sans-serif" data-action="toggle-setup-sec" data-sec="'+id+'">'
+    +'<button style="width:100%;padding:16px;background:'+(isOpen?"var(--greige)":"var(--white)")+';border:none;display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;font-family:var(--sans)" data-action="toggle-setup-sec" data-sec="'+id+'">'
     +'<span style="font-size:20px">'+icon+"</span>"
     +'<span style="font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--mocha);flex:1">'+label+"</span>"
     +'<span style="font-size:14px;opacity:.3;color:var(--walnut)">'+(isOpen?"▾":"▸")+"</span>"
@@ -1170,9 +1176,9 @@ function buildDashInSetup(){
   if(custOpen){
     const today=(()=>{const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");})();
     h+='<div class="mo-lbl" style="margin-top:0">Start Date</div>'
-      +'<input class="mo-inp" type="date" id="custom_start" value="'+(customStart||today)+'" style="font-family:Jost,sans-serif;font-size:14px;margin-bottom:10px">'
+      +'<input class="mo-inp" type="date" id="custom_start" value="'+(customStart||today)+'" style="font-family:var(--sans);font-size:14px;margin-bottom:10px">'
       +'<div class="mo-lbl">End Date</div>'
-      +'<input class="mo-inp" type="date" id="custom_end" value="'+(customEnd||today)+'" style="font-family:Jost,sans-serif;font-size:14px;margin-bottom:14px">'
+      +'<input class="mo-inp" type="date" id="custom_end" value="'+(customEnd||today)+'" style="font-family:var(--sans);font-size:14px;margin-bottom:14px">'
       +'<button class="done-btn" data-action="custom-range-go" style="margin-bottom:14px">View Range</button>';
     if(customStart&&customEnd&&customRangeData){
       const{done,total,pct,byCat}=customRangeData;
@@ -1191,7 +1197,7 @@ function buildDashInSetup(){
 
 function dashSubHdr(id,label,isOpen){
   return '<div style="margin-bottom:8px">'
-    +'<button style="width:100%;padding:12px 14px;background:'+(isOpen?"var(--greige)":"rgba(255,255,255,.6)")+';border:1px solid #EDE8E2;border-radius:10px;display:flex;align-items:center;gap:10px;cursor:pointer;text-align:left;font-family:Jost,sans-serif" data-action="toggle-dash-sub" data-sub="'+id+'">'
+    +'<button style="width:100%;padding:12px 14px;background:'+(isOpen?"var(--greige)":"rgba(255,255,255,.6)")+';border:1px solid #EDE8E2;border-radius:10px;display:flex;align-items:center;gap:10px;cursor:pointer;text-align:left;font-family:var(--sans)" data-action="toggle-dash-sub" data-sub="'+id+'">'
     +'<span style="font-size:13px;font-weight:500;color:var(--mocha);flex:1">'+label+"</span>"
     +'<span style="font-size:13px;opacity:.3">'+(isOpen?"▾":"▸")+"</span>"
     +"</button></div>";
@@ -1405,7 +1411,7 @@ function modalTask(catId,taskId,routineId){
     +'<div style="font-size:11px;opacity:.5;margin-top:2px">Task will carry forward to the next day</div></div>'
     +'</div>'
     +'<div class="mo-lbl">End Date (optional)</div>'
-    +'<input class="mo-inp" type="date" id="mtask_enddate" value="'+(task.endDate||'')+'" style="font-family:Jost,sans-serif;font-size:14px">'
+    +'<input class="mo-inp" type="date" id="mtask_enddate" value="'+(task.endDate||'')+'" style="font-family:var(--sans);font-size:14px">'
     +'<div style="font-size:11px;opacity:.4;margin-top:6px">Task stops appearing after this date.</div>';
   if(taskId&&!mRoutineId){
     const otherCats=cats.filter(c=>c.id!==catId&&!c.isHabits);
@@ -1599,7 +1605,7 @@ function freqExtra(f,pfx){
     const dy=String(f.date||now.getDate()).padStart(2,"0");
     const val=yr+"-"+mo+"-"+dy;
     return'<div class="mo-lbl">Date</div>'
-      +'<input class="mo-inp" type="date" id="'+pfx+'_datepicker" value="'+val+'" style="font-family:Jost,sans-serif;font-size:14px">';
+      +'<input class="mo-inp" type="date" id="'+pfx+'_datepicker" value="'+val+'" style="font-family:var(--sans);font-size:14px">';
   }
   return "";
 }
