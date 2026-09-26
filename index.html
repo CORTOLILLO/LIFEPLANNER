@@ -27,8 +27,10 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:var(-
 .nav-btn{background:rgba(255,255,255,.5);border:1px solid rgba(180,165,150,.4);color:var(--mocha);border-radius:20px;padding:4px 12px;font-size:10px;cursor:pointer;font-family:var(--sans);letter-spacing:.5px}
 .setup-btn{background:rgba(255,255,255,.6);border:1px solid rgba(180,165,150,.5);color:var(--mocha);border-radius:20px;padding:4px 12px;font-size:11px;cursor:pointer;font-family:var(--sans);font-weight:500}
 #view-tabs{display:flex;gap:4px;margin-bottom:10px}
-.vtab{flex:1;padding:8px 0 7px;border-radius:20px;border:none;cursor:pointer;font-size:13px;font-weight:400;letter-spacing:.3px;font-family:var(--sans);background:rgba(255,255,255,.35);color:var(--walnut);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px}
+.vtab{flex:1;min-width:0;padding:8px 0 7px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:400;letter-spacing:.2px;font-family:var(--sans);background:rgba(255,255,255,.35);color:var(--walnut);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px}
 .vtab svg{flex-shrink:0;margin-top:-2px}
+#view-tabs{gap:4px}
+.vtab{gap:4px}
 .setup-btn svg{display:block}
 .ci{display:inline-flex;vertical-align:middle;line-height:0}
 .ci svg{display:block}
@@ -172,6 +174,20 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:var(-
 .pv-task{margin-bottom:8px;padding:12px 14px;border-radius:12px;background:var(--white);border:1px solid #EDE8E2;display:flex;align-items:center;gap:10px}
 .pv-task-meta{font-size:10px;opacity:.4;margin-top:2px;letter-spacing:.3px}
 .pv-empty{font-size:13px;opacity:.35;font-style:italic;padding:8px 2px}
+/* Coach */
+.cb{max-width:84%;padding:11px 14px;border-radius:16px;font-size:15px;line-height:1.55;font-weight:300;margin:0 14px 10px;color:var(--ink);word-wrap:break-word}
+.cb.ai{background:var(--white);border:1px solid #EDE8E2;border-bottom-left-radius:4px}
+.cb.me{background:var(--greige);margin-left:auto;border-bottom-right-radius:4px;color:var(--mocha)}
+.cb b{font-weight:500}
+.coach-bar{position:sticky;bottom:0;background:var(--ivory);padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));display:flex;gap:8px;align-items:flex-end;border-top:1px solid #EDE8E2}
+.coach-bar textarea{flex:1;border:1.5px solid var(--greige);border-radius:18px;padding:10px 14px;font-size:15px;font-family:var(--sans);font-weight:300;color:var(--ink);background:var(--white);outline:none;resize:none;max-height:120px;line-height:1.4}
+.coach-bar textarea:focus{border-color:var(--walnut)}
+.coach-send{width:40px;height:40px;border-radius:50%;border:none;background:var(--walnut);color:var(--ivory);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.coach-chip{border:1px solid rgba(158,139,125,.45);background:var(--white);color:var(--mocha);border-radius:20px;padding:7px 13px;font-size:13px;font-family:var(--sans);cursor:pointer}
+.coach-dots span{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--stone);margin:0 2px;animation:cdot 1.2s infinite}
+.coach-dots span:nth-child(2){animation-delay:.2s}.coach-dots span:nth-child(3){animation-delay:.4s}
+@keyframes cdot{0%,80%,100%{opacity:.3}40%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.coach-dots span{animation:none}}
 /* Attachments */
 .clip-btn{background:none;border:none;font-size:16px;opacity:.55;cursor:pointer;flex-shrink:0;padding:0 2px;font-family:inherit}
 .file-box{display:flex;align-items:center;gap:10px;padding:11px 13px;border:1.5px solid var(--greige);border-radius:10px;background:var(--white)}
@@ -255,6 +271,7 @@ const ICON_PATHS={
   calendar:'<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4H4z" fill="{c}"/><path d="M8 15h2v2H8z" fill="{c}"/>',
   clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" fill="none"/>',
   target:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="{c}"/>',
+  chat:'<path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-5 4v-4H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M8 10h8M8 13h5" fill="none"/>',
   gear:'<path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37c1 .608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/>'
 };
 
@@ -289,7 +306,7 @@ function deepen(hex){
   const mx=Math.max(r,g,b),mn=Math.min(r,g,b);let h=0,sat=0,l=(mx+mn)/2;
   if(mx!==mn){const d=mx-mn;sat=l>.5?d/(2-mx-mn):d/(mx+mn);
     h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;h/=6;}
-  sat=Math.min(1,sat*1.7+.08);l=Math.max(0,l-.2);
+  sat=Math.min(1,sat*1.15+.04);l=Math.max(0,l-.17);
   const f=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;};
   const q=l<.5?l*(1+sat):l+sat-l*sat,p=2*l-q;
   const to=x=>Math.round(x*255).toString(16).padStart(2,"0");
@@ -349,6 +366,9 @@ let dashM=new Date().getMonth(),dashY=new Date().getFullYear();
 let mFreq={},mCatId=null,mTaskId=null,mRoutineId=null;
 let _cats=null,_custom={},_checks={};
 let _settings={}; // display preferences, e.g. showDayProgress
+let _coach={}; // coach conversations, one per week
+let coachBusy=false,coachError="",coachDraft="";
+const COACH_URL=SUPABASE_URL+"/functions/v1/coach";
 let openRoutine=null; // which routine's task panel is expanded in setup
 let routineSelectTasks=new Set(); // task ids checked in the "Save as Routine" modal
 let customStart=null,customEnd=null,customRangeData=null; // Dashboard "Custom Range" state
@@ -370,6 +390,8 @@ async function loadFromSupabase(){
   _custom=(cu&&typeof cu==="object")?cu:{};
   const allChecks=await sbGet("all_checks");
   _checks=(allChecks&&typeof allChecks==="object")?allChecks:{};
+  const cc=await sbGet("coach_chat");
+  _coach=(cc&&typeof cc==="object")?cc:{};
   const st=await sbGet("settings");
   _settings=(st&&typeof st==="object")?st:(ls.get("settings_backup")||{});
 }
@@ -594,10 +616,10 @@ function renderHeader(){
   });
 
   const vt=document.getElementById("view-tabs");vt.innerHTML="";
-  [["day","Day","calendar","#C0708C","#F6DCE6"],["schedule","Schedule","clock","#5F8DB8","#D8E7F4"],["priorities","Priorities","target","#5E9C80","#D5EBDF"]].forEach(([v,l,ic,col,tint])=>{
+  [["day","Day","calendar","#C0708C","#F6DCE6"],["schedule","Schedule","clock","#5F8DB8","#D8E7F4"],["priorities","Priorities","target","#5E9C80","#D5EBDF"],["coach","Coach","chat","#B08A4E","#F3E6CE"]].forEach(([v,l,ic,col,tint])=>{
     const b=document.createElement("button");
     b.className="vtab"+(view===v?" active":"");
-    b.innerHTML=svgIcon(ICON_PATHS[ic],17,col,tint)+'<span>'+l+'</span>';
+    b.innerHTML=svgIcon(ICON_PATHS[ic],16,col,tint)+'<span>'+l+'</span>';
     b.dataset.action="view-"+v;
     vt.appendChild(b);
   });
@@ -640,6 +662,7 @@ function renderMain(){
   else if(view==="day") el.innerHTML=buildDay();
   else if(view==="schedule") el.innerHTML=buildSchedule();
   else if(view==="priorities") el.innerHTML=buildPriorities();
+  else if(view==="coach"){el.innerHTML=buildCoach();setTimeout(()=>window.scrollTo(0,document.body.scrollHeight),30);}
   setTimeout(()=>{document.getElementById("main").style.paddingTop=document.getElementById("header").offsetHeight+"px"},0);
   syncInputs();
 }
@@ -830,6 +853,127 @@ function syncInputs(){
 }
 
 // ── Priorities View ────────────────────────────────────────────────────────────
+// ── Coach ──────────────────────────────────────────────────────────────────────
+// Builds a plain-text summary of a week that the AI coach reads.
+function dateStrOf(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+function summarizeWeek(wk){
+  const{sunday}=parseWk(wk);const today=todayStr();
+  const byCat={},byTask={},byDay=[];let done=0,total=0,daysCounted=0;
+  DAYS.forEach((day,di)=>{
+    const d=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+di);
+    const ds=dateStrOf(d);
+    if(ds>today) return; // don't count days that haven't happened yet
+    daysCounted++;
+    let dd=0,dt=0;
+    getTasksForDay(wk,day).forEach(r=>{
+      const ok=r[5]==="Yes";
+      dt++;if(ok)dd++;
+      byCat[r[2]]=byCat[r[2]]||{done:0,total:0};byCat[r[2]].total++;if(ok)byCat[r[2]].done++;
+      const k=r[2]+" › "+r[3];
+      byTask[k]=byTask[k]||{done:0,total:0,priority:r[4]};byTask[k].total++;if(ok)byTask[k].done++;
+    });
+    done+=dd;total+=dt;
+    byDay.push(day.slice(0,3)+" "+(d.getMonth()+1)+"/"+d.getDate()+": "+dd+"/"+dt);
+  });
+  return{done,total,byCat,byTask,byDay,daysCounted};
+}
+function buildCoachContext(wk){
+  const{sunday}=parseWk(wk);
+  const end=new Date(sunday);end.setDate(sunday.getDate()+6);
+  const now=new Date();
+  const cur=summarizeWeek(wk);
+  const prevSun=new Date(sunday);prevSun.setDate(sunday.getDate()-7);
+  const prev=summarizeWeek(dateStrOf(prevSun));
+  const pct=(a,b)=>b?Math.round(a/b*100)+"%":"n/a";
+  let t="Today: "+DAYS[now.getDay()]+", "+MONTHS[now.getMonth()]+" "+now.getDate()+", "+now.getFullYear()+"\n";
+  t+="Week being reviewed: "+MONTHS[sunday.getMonth()]+" "+sunday.getDate()+" to "+MONTHS[end.getMonth()]+" "+end.getDate()+"\n";
+  t+=cur.daysCounted<7?("Week in progress: "+cur.daysCounted+" of 7 days so far.\n"):"Full week.\n";
+  t+="\nOverall: "+cur.done+" of "+cur.total+" tasks done ("+pct(cur.done,cur.total)+"). Last week: "+prev.done+" of "+prev.total+" ("+pct(prev.done,prev.total)+").\n";
+  t+="\nBy category (this week / last week):\n";
+  const cats=new Set(Object.keys(cur.byCat).concat(Object.keys(prev.byCat)));
+  cats.forEach(c=>{const a=cur.byCat[c]||{done:0,total:0},b=prev.byCat[c]||{done:0,total:0};
+    t+="- "+c+": "+a.done+"/"+a.total+" ("+pct(a.done,a.total)+") / "+b.done+"/"+b.total+" ("+pct(b.done,b.total)+")\n";});
+  t+="\nBy day: "+cur.byDay.join(", ")+"\n";
+  t+="\nTasks this week (done/scheduled, priority):\n";
+  Object.keys(cur.byTask).sort((x,y)=>(cur.byTask[x].done/cur.byTask[x].total)-(cur.byTask[y].done/cur.byTask[y].total)).slice(0,60).forEach(k=>{
+    const v=cur.byTask[k];t+="- "+k+": "+v.done+"/"+v.total+(v.priority?", "+v.priority:"")+"\n";});
+  t+="\nCategories set up: "+(getCats()||[]).map(c=>c.name+(c.isHabits?" (habits)":"")).join(", ")+"\n";
+  return t;
+}
+function fmtCoach(txt){
+  return esc(txt)
+    .replace(/\*\*(.+?)\*\*/g,"<b>$1</b>")
+    .replace(/^[-*] /gm,"• ")
+    .replace(/\n/g,"<br>");
+}
+function buildCoach(){
+  const wk=wkKey(),msgs=_coach[wk]||[];
+  const{sunday}=parseWk(wk);
+  let h='<div class="dv-top"><div><div class="dv-title">Coach</div>'
+    +'<div style="font-size:12px;color:var(--walnut);letter-spacing:.3px;margin-top:4px">Week of '+MONTHS[sunday.getMonth()]+' '+sunday.getDate()+'</div></div>'
+    +(msgs.length&&!coachBusy?'<button class="nav-btn" data-action="coach-reset">Start over</button>':'')
+    +'</div>';
+  if(!msgs.length){
+    h+='<div style="margin:6px 14px 0;padding:22px 18px;background:var(--white);border:1px solid #EDE8E2;border-radius:16px;text-align:center">'
+      +'<div style="display:flex;justify-content:center;margin-bottom:12px">'+svgIcon(ICON_PATHS.chat,34,"#B08A4E","#F3E6CE")+'</div>'
+      +'<div style="font-size:15px;color:var(--mocha);margin-bottom:6px">Your weekly check-in</div>'
+      +'<div style="font-size:13px;color:var(--walnut);line-height:1.6;margin-bottom:18px">See what\'s going well, where things slipped, and talk through what to change.</div>'
+      +(coachBusy?'<div class="coach-dots"><span></span><span></span><span></span></div>'
+        :'<button class="done-btn" data-action="coach-start" style="padding:14px">Start my check-in</button>')
+      +(coachError?'<div style="font-size:12px;color:#b85c52;margin-top:12px;line-height:1.5">'+esc(coachError)+'</div>':'')
+      +'</div>';
+    return h;
+  }
+  h+='<div style="padding-top:4px">';
+  msgs.forEach(m=>{
+    if(m.hidden) return;
+    h+='<div class="cb '+(m.role==="user"?"me":"ai")+'">'+fmtCoach(m.content)+'</div>';
+  });
+  if(coachBusy) h+='<div class="cb ai" style="width:auto;display:inline-block"><div class="coach-dots"><span></span><span></span><span></span></div></div>';
+  const visibleUser=msgs.filter(m=>m.role==="user"&&!m.hidden).length;
+  if(!coachBusy&&visibleUser===0&&msgs[msgs.length-1].role==="assistant"){
+    h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 14px 12px">';
+    ["Let's brainstorm","Help me adjust a goal","It's been a busy week"].forEach(c=>{
+      h+='<button class="coach-chip" data-action="coach-chip" data-text="'+esc(c)+'">'+esc(c)+'</button>';
+    });
+    h+='</div>';
+  }
+  if(coachError) h+='<div style="font-size:12px;color:#b85c52;margin:0 14px 10px;line-height:1.5">'+esc(coachError)+'</div>';
+  h+='</div>';
+  h+='<div class="coach-bar"><textarea id="coach_input" rows="1" placeholder="Reply to your coach">'+esc(coachDraft)+'</textarea>'
+    +'<button class="coach-send" data-action="coach-send" aria-label="Send">'+svgIcon('<path d="M12 19V5M5 12l7-7 7 7"/>',18,"#F5F2EC")+'</button></div>';
+  return h;
+}
+function saveCoach(){
+  const keys=Object.keys(_coach).sort();
+  while(keys.length>8){delete _coach[keys.shift()];} // keep the last 8 weeks
+  sbSet("coach_chat",_coach);
+}
+async function coachSend(text,hidden){
+  const wk=wkKey();
+  _coach[wk]=_coach[wk]||[];
+  _coach[wk].push({role:"user",content:text,hidden:!!hidden});
+  coachBusy=true;coachError="";coachDraft="";renderMain();
+  try{
+    const r=await fetch(COACH_URL,{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY},
+      body:JSON.stringify({messages:_coach[wk].map(m=>({role:m.role,content:m.content})),context:buildCoachContext(wk)})
+    });
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok||!d.reply) throw new Error(d.error||("Your coach couldn't answer (error "+r.status+")."));
+    _coach[wk].push({role:"assistant",content:d.reply});
+    saveCoach();
+  }catch(e){
+    _coach[wk].pop();
+    if(!_coach[wk].length) delete _coach[wk];
+    if(!hidden) coachDraft=text;
+    coachError=(e&&e.message&&!/fetch|network|load/i.test(e.message))?e.message:"Couldn't reach your coach. Check your connection. If the coach setup in Supabase isn't finished yet, that's the reason.";
+  }
+  coachBusy=false;
+  if(view==="coach") renderMain();
+}
+
 function buildPriorities(){
   const day=activeDay,di=DAYS.indexOf(day),cats=getCats()||[];
   const wk=wkKey(),ch=chks();
@@ -1747,6 +1891,15 @@ document.addEventListener("click",function(e){
   if(a==="setup"||a==="go-setup"){mode="setup";render();return;}
   if(a==="go-planner"){mode="planner";render();return;}
   if(a==="close-modal"){closeModal();return;}
+  if(a==="coach-start"){if(!coachBusy) coachSend("Give me my check-in for this week.",true);return;}
+  if(a==="coach-chip"){if(!coachBusy) coachSend(btn.dataset.text,false);return;}
+  if(a==="coach-send"){
+    const inp=document.getElementById("coach_input");const t=(inp&&inp.value||"").trim();
+    if(!t||coachBusy) return;coachSend(t,false);return;
+  }
+  if(a==="coach-reset"){
+    const wk=wkKey();delete _coach[wk];coachError="";coachDraft="";saveCoach();renderMain();return;
+  }
   if(a==="toggle-day-progress"){
     _settings.showDayProgress=!showDayProgress();
     saveSettings();renderSetupSection("display");return;
@@ -2164,6 +2317,12 @@ document.getElementById("task-file-input").addEventListener("change",async funct
     const w2=document.getElementById("mtask_file_wrap");
     if(w2) w2.innerHTML=fileBoxHTML(mFileData?{name:mFileData.name,size:mFileData.size}:(mFileRemove?null:mTaskFileMeta));
   }
+});
+
+// Coach reply box grows with its text
+document.addEventListener("input",function(e){
+  if(e.target.id!=="coach_input") return;
+  e.target.style.height="auto";e.target.style.height=Math.min(e.target.scrollHeight,120)+"px";
 });
 
 // write-in blur saving
