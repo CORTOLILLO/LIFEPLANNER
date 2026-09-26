@@ -282,6 +282,7 @@ let mode="planner",view="day",wkOff=0,activeDay=DAYS[new Date().getDay()],openSe
 let dashM=new Date().getMonth(),dashY=new Date().getFullYear();
 let mFreq={},mCatId=null,mTaskId=null,mRoutineId=null;
 let _cats=null,_custom={},_checks={};
+let _settings={}; // display preferences, e.g. showDayProgress
 let openRoutine=null; // which routine's task panel is expanded in setup
 let routineSelectTasks=new Set(); // task ids checked in the "Save as Routine" modal
 let customStart=null,customEnd=null,customRangeData=null; // Dashboard "Custom Range" state
@@ -303,7 +304,11 @@ async function loadFromSupabase(){
   _custom=(cu&&typeof cu==="object")?cu:{};
   const allChecks=await sbGet("all_checks");
   _checks=(allChecks&&typeof allChecks==="object")?allChecks:{};
+  const st=await sbGet("settings");
+  _settings=(st&&typeof st==="object")?st:(ls.get("settings_backup")||{});
 }
+function saveSettings(){ls.set("settings_backup",_settings);sbSet("settings",_settings);}
+function showDayProgress(){return _settings.showDayProgress!==false;}
 
 function initCats(){if(!_cats||_cats.length===0){mode="setup";}}
 
@@ -539,7 +544,7 @@ function renderHeader(){
       const b=document.createElement("button");
       b.className="dtab"+(isA?" active":"")+(isT?" today":"");
       b.dataset.action="day-"+d;
-      if(view==="day"||view==="priorities"){
+      if((view==="day"||view==="priorities")&&showDayProgress()){
         const{done,total}=dayProg(d,wk);
         const pct=total?Math.round((done/total)*100):0;
         b.innerHTML='<div class="dtab-name">'+d.slice(0,3).toUpperCase()+'</div>'
@@ -989,6 +994,20 @@ function buildSetup(){
       h+="</div>";
     });
     h+="</div>";
+  }
+
+  const dispOpen=setupOpen==="display";
+  h+=setupSection("display","🎨","DISPLAY",dispOpen);
+  if(dispOpen){
+    const on=showDayProgress();
+    h+='<div style="padding:0 0 16px">'
+      +'<button data-action="toggle-day-progress" style="width:100%;display:flex;align-items:center;gap:12px;padding:14px;background:var(--white);border:1px solid #EDE8E2;border-radius:12px;cursor:pointer;text-align:left;font-family:Jost,sans-serif">'
+      +'<div style="flex:1"><div style="font-size:13px;font-weight:500;color:var(--mocha)">Show progress on day tiles</div>'
+      +'<div style="font-size:11px;opacity:.5;margin-top:2px">The % rings on the days at the top</div></div>'
+      +'<span style="flex-shrink:0;width:40px;height:22px;border-radius:20px;background:'+(on?"var(--walnut)":"#DDD5CC")+';position:relative;display:block;pointer-events:none">'
+      +'<span style="position:absolute;top:2px;'+(on?"right:2px":"left:2px")+';width:18px;height:18px;border-radius:50%;background:white;display:block"></span>'
+      +'</span></button>'
+      +'</div>';
   }
 
   const dataOpen=setupOpen==="data";
@@ -1659,6 +1678,10 @@ document.addEventListener("click",function(e){
   if(a==="setup"||a==="go-setup"){mode="setup";render();return;}
   if(a==="go-planner"){mode="planner";render();return;}
   if(a==="close-modal"){closeModal();return;}
+  if(a==="toggle-day-progress"){
+    _settings.showDayProgress=!showDayProgress();
+    saveSettings();renderSetupSection("display");return;
+  }
 
   // ── Attachments
   if(a==="task-file-pick"){document.getElementById("task-file-input").click();return;}
