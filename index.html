@@ -20,7 +20,9 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:var(-
 #header{position:fixed;top:0;left:0;right:0;z-index:200;background:var(--greige);color:var(--mocha);padding:env(safe-area-inset-top,0px) 18px 0;box-shadow:0 2px 16px rgba(180,165,150,.3)}
 #header-top{display:flex;justify-content:space-between;align-items:flex-start;padding:16px 0 10px}
 .app-sub{font-size:9px;letter-spacing:4px;opacity:.55;text-transform:uppercase;margin-bottom:3px;font-weight:400;color:var(--walnut)}
-.app-title{font-family:"Italiana",serif;font-size:30px;font-weight:400;letter-spacing:1px;line-height:1.05;color:var(--mocha)}
+.app-title{font-family:"Italiana",serif;font-size:30px;font-weight:400;letter-spacing:1px;line-height:1.05;color:var(--mocha);white-space:nowrap}
+#header-top>div:first-child{flex-shrink:0}
+#week-nav{min-width:0;margin-left:10px}
 #week-nav{text-align:right}
 #week-label{font-size:10px;opacity:.6;margin-bottom:7px;letter-spacing:.5px;color:var(--walnut)}
 #nav-btns{display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap}
@@ -488,6 +490,11 @@ function logRoutineChange(cat,rid){
   if(last&&last.start===t) last.routineId=rid;
   else cat.routineLog.push({routineId:rid,start:t});
 }
+// "Today only" edits: stored per week in the checks data, keyed day:cat:task__edit
+function dayEdit(tk,cat,day,wk){
+  const o=(_checks[wk]||{})[day+":"+cat.id+":"+tk.id+"__edit"];
+  return o?Object.assign({},tk,o,{_edited:true}):tk;
+}
 function catAllTasks(cat,dateStr){
   if(!cat) return [];
   const loose=cat.tasks||[];
@@ -705,7 +712,7 @@ function buildDay(){
     }
     h+=secHdr(cat,prog.done,prog.total,isO);
     h+='<div class="sec-body">';
-    catAllTasks(cat,dayDateStr).forEach(tk=>{
+    catAllTasks(cat,dayDateStr).map(tk=>dayEdit(tk,cat,day,wk)).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
       if(skipped&&!chk) return;
@@ -842,7 +849,7 @@ function buildPriorities(){
 
   cats.forEach(cat=>{
     if(!catOn(cat,di,wk,day)||cat.isHabits) return;
-    catAllTasks(cat,dayDateStr).forEach(tk=>{
+    catAllTasks(cat,dayDateStr).map(tk=>dayEdit(tk,cat,day,wk)).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
       if(skipped&&!chk) return;
@@ -867,7 +874,7 @@ function buildPriorities(){
   });
 
   let h='<div class="dv-top"><div><div class="dv-title">'+day+'</div>'
-    +'<div style="font-size:11px;opacity:.5;letter-spacing:.5px;margin-top:2px">By Priority</div></div></div>'
+    +'<div style="font-size:11px;opacity:.5;letter-spacing:.5px;margin-top:2px">By Priority · Double-tap a task to edit</div></div></div>'
     +'<div class="pv">';
 
   PRIORITIES.forEach(prio=>{
@@ -884,7 +891,7 @@ function buildPriorities(){
       h+='<div class="pv-empty">Nothing here today.</div>';
     } else {
       items.forEach(({tk,cat,chk})=>{
-        h+='<div class="pv-task" style="border-left:3px solid '+prio.color+';opacity:'+(chk?'.5':'1')+'">'
+        h+='<div class="pv-task task-card" data-cat="'+cat.id+'" data-task="'+tk.id+'" style="border-left:3px solid '+prio.color+';opacity:'+(chk?'.5':'1')+'">'
           +'<button class="cbtn'+(chk?" chk":" hv")+'" style="'+(chk?"background:"+prio.color+";border-color:"+prio.color:"border-color:"+prio.color)+'" data-action="check" data-cat="'+cat.id+'" data-tk="'+tk.id+'">'+(chk?"&#x2713;":"")+"</button>"
           +'<div style="flex:1">'
           +'<div style="font-size:14px;font-weight:300;color:var(--ink)'+(chk?';text-decoration:line-through;color:var(--stone)':'')+'">'
@@ -922,7 +929,7 @@ function buildSchedule(){
   const scheduled=[],unscheduled=[];
   cats.forEach(cat=>{
     if(!catOn(cat,di,wk,day)||cat.isHabits) return;
-    catAllTasks(cat,dayDateStr).forEach(tk=>{
+    catAllTasks(cat,dayDateStr).map(tk=>dayEdit(tk,cat,day,wk)).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di,dayDateStr))&&taskCreatedBeforeOrOnDay(tk,wk,day);
       let show=applies;
@@ -945,7 +952,7 @@ function buildSchedule(){
   scheduled.sort((a,b)=>a.tk.startTime.localeCompare(b.tk.startTime));
 
   let h='<div class="dv-top"><div><div class="dv-title">'+day+"</div>"
-    +'<div style="font-size:11px;opacity:.5;letter-spacing:.5px;margin-top:2px">Daily Schedule</div></div></div>';
+    +'<div style="font-size:11px;opacity:.5;letter-spacing:.5px;margin-top:2px">Daily Schedule · Double-tap a task to edit</div></div></div>';
 
   if(!scheduled.length&&!unscheduled.length){
     h+='<div style="text-align:center;padding:60px 20px;opacity:.4">'
@@ -961,7 +968,7 @@ function buildSchedule(){
         +'<div style="font-size:11px;font-weight:500;color:var(--walnut);letter-spacing:.3px">'+fmt12(tk.startTime)+"</div>"
         +(tk.endTime?'<div style="font-size:10px;opacity:.4">'+fmt12(tk.endTime)+"</div>":"")
         +"</div>"
-        +'<div style="flex:1;background:var(--white);border-radius:14px;border:1px solid '+p.lt+';border-left:3px solid '+p.ac+';padding:12px 14px">'
+        +'<div class="task-card" data-cat="'+cat.id+'" data-task="'+tk.id+'" style="flex:1;background:var(--white);border-radius:14px;border:1px solid '+p.lt+';border-left:3px solid '+p.ac+';padding:12px 14px">'
         +'<div style="display:flex;align-items:center;gap:10px">'
         +'<button class="cbtn'+(chk?" chk":" hv")+'" style="'+(chk?"background:"+p.ac+";border-color:"+p.ac:"border-color:"+p.ac)+';flex-shrink:0" data-action="check" data-cat="'+cat.id+'" data-tk="'+tk.id+'">'+(chk?"&#x2713;":"")+"</button>"
         +'<div style="flex:1">'
@@ -973,7 +980,7 @@ function buildSchedule(){
   if(unscheduled.length){
     h+=divider("As Time Allows");
     unscheduled.forEach(({tk,cat,p,chk})=>{
-      h+='<div style="margin:0 14px 10px;background:var(--white);border-radius:14px;border:1px solid '+p.lt+';padding:12px 14px">'
+      h+='<div class="task-card" data-cat="'+cat.id+'" data-task="'+tk.id+'" style="margin:0 14px 10px;background:var(--white);border-radius:14px;border:1px solid '+p.lt+';padding:12px 14px">'
         +'<div style="display:flex;align-items:center;gap:10px">'
         +'<button class="cbtn'+(chk?" chk":" hv")+'" style="'+(chk?"background:"+p.ac+";border-color:"+p.ac:"border-color:"+p.ac)+'" data-action="check" data-cat="'+cat.id+'" data-tk="'+tk.id+'">'+(chk?"&#x2713;":"")+"</button>"
         +'<div style="flex:1">'
@@ -1693,6 +1700,45 @@ document.addEventListener("touchend",function(e){
     lastTap={row,time:now};
   }
 },{passive:true});
+// Double tap a task card in Schedule or Priorities to open edit options
+let lastCardTap={card:null,time:0};
+function cardTapShouldIgnore(e){return e.target.closest(".cbtn")||e.target.closest("a")||e.target.closest(".clip-btn");}
+document.addEventListener("touchend",function(e){
+  const card=e.target.closest(".task-card");
+  if(!card||cardTapShouldIgnore(e)) return;
+  const now=Date.now();
+  if(lastCardTap.card===card&&now-lastCardTap.time<350){
+    e.preventDefault();taskOptionsModal(card.dataset.cat,card.dataset.task);lastCardTap={card:null,time:0};
+  } else lastCardTap={card,time:now};
+});
+document.addEventListener("dblclick",function(e){
+  const card=e.target.closest(".task-card");
+  if(!card||cardTapShouldIgnore(e)) return;
+  taskOptionsModal(card.dataset.cat,card.dataset.task);
+});
+function taskOptionsModal(cid,tid){
+  const cat=(getCats()||[]).find(c=>c.id===cid);
+  const found=cat&&getTaskById(cat,tid);if(!found) return;
+  const tk=dayEdit(found.task,cat,activeDay,wkKey());
+  const isOnce=found.task.freq&&found.task.freq.type==="once";
+  const d='data-cat="'+cid+'" data-task="'+tid+'"';
+  const note=t=>'<div style="font-size:11px;opacity:.4;text-align:center;margin:6px 0 14px">'+t+'</div>';
+  let h='<div class="mo-title">'+esc(tk.name)+'</div>';
+  if(isOnce){
+    h+='<button class="mo-save" data-action="edit-task-series" '+d+'>Edit Task</button>'
+      +'<button class="mo-del" data-action="del-task-all" '+d+' style="margin-top:12px">Delete Task</button>';
+  } else {
+    h+='<button class="mo-save" data-action="edit-task-today" '+d+'>Edit '+activeDay+' Only</button>'
+      +note("Changes this day only.")
+      +'<button class="mo-cancel" data-action="edit-task-series" '+d+' style="color:var(--walnut)">Edit Series</button>'
+      +note("Changes every day this task repeats.")
+      +'<button class="mo-del" data-action="del-task-today" '+d+'>Skip '+activeDay+'</button>'
+      +'<button class="mo-del" data-action="del-task-forward" '+d+'>Stop Here (keep history)</button>'
+      +'<button class="mo-del" data-action="del-task-all" '+d+'>Delete Everywhere</button>';
+  }
+  h+='<button class="mo-cancel" data-action="close-modal" style="margin-top:14px">Cancel</button>';
+  openModal(h);
+}
 function flipRow(row){
   const front=row.querySelector(".task-front"),back=row.querySelector(".task-back");
   if(!front||!back) return;front.style.display="none";back.style.display="block";
@@ -1967,6 +2013,55 @@ document.addEventListener("click",function(e){
     );
     return;
   }
+  if(a==="edit-task-today"){
+    const cid=btn.dataset.cat,tid=btn.dataset.task;
+    const row=document.getElementById("row_"+cid+"_"+tid);if(row)unflipRow(row);
+    const cat=(getCats()||[]).find(c=>c.id===cid);
+    const found=cat&&getTaskById(cat,tid);if(!found) return;
+    const base=found.task,ek=activeDay+":"+cid+":"+tid+"__edit";
+    const tk=Object.assign({},base,chks()[ek]||{});
+    mCatId=cid;mTaskId=tid;mPriority=tk.priority||4;
+    let h='<div class="mo-title">Edit for '+activeDay+' Only</div>'
+      +'<div style="font-size:12px;opacity:.5;margin:-14px 0 18px;line-height:1.5">Changes apply to this day only. Every other day stays the same.</div>'
+      +'<div class="mo-lbl">Task Name</div>'
+      +'<input class="mo-inp" id="mday_name" maxlength="60" value="'+esc(tk.name||"")+'">'
+      +'<div class="mo-lbl">Priority</div><div class="pgrid">';
+    PRIORITIES.forEach(pr=>{
+      h+='<button class="pbtn'+(mPriority===pr.id?" active":"")+'" data-priority-pick="'+pr.id+'" style="border-left:3px solid '+pr.color+'">'
+        +'<div style="font-size:16px;margin-bottom:3px">'+pr.emoji+'</div>'
+        +'<div style="font-size:10px;font-weight:600;letter-spacing:.5px">'+pr.id+'. '+pr.label+'</div>'
+        +'<div style="font-size:9px;opacity:.5;margin-top:2px">'+pr.desc+'</div></button>';
+    });
+    h+='</div>'
+      +'<div class="mo-lbl">Link (optional)</div>'
+      +'<input class="mo-inp" id="mday_url" type="url" placeholder="https://..." value="'+esc(tk.url||"")+'">'
+      +'<div class="mo-lbl">Scheduled Time (optional)</div><div class="mrow">'
+      +'<div><div style="font-size:9px;letter-spacing:1.5px;opacity:.5;margin-bottom:6px">START</div>'
+      +'<input class="mo-inp sm" id="mday_start" type="time" value="'+esc(tk.startTime||"")+'"></div>'
+      +'<div><div style="font-size:9px;letter-spacing:1.5px;opacity:.5;margin-bottom:6px">END</div>'
+      +'<input class="mo-inp sm" id="mday_end" type="time" value="'+esc(tk.endTime||"")+'"></div></div>'
+      +'<button class="mo-save" data-action="save-task-today" data-cat="'+cid+'" data-task="'+tid+'" style="margin-top:22px">Save for '+activeDay+'</button>'
+      +(chks()[ek]?'<button class="mo-cancel" data-action="reset-task-today" data-cat="'+cid+'" data-task="'+tid+'">Undo Changes for This Day</button>':'')
+      +'<button class="mo-cancel" data-action="close-modal">Cancel</button>';
+    openModal(h);return;
+  }
+  if(a==="save-task-today"||a==="reset-task-today"){
+    const cid=btn.dataset.cat,tid=btn.dataset.task;
+    const cat=(getCats()||[]).find(c=>c.id===cid);
+    const found=cat&&getTaskById(cat,tid);if(!found) return;
+    const base=found.task,ek=activeDay+":"+cid+":"+tid+"__edit",c=chks();
+    if(a==="reset-task-today"){delete c[ek];}
+    else{
+      const v=id=>((document.getElementById(id)||{}).value||"").trim();
+      const name=v("mday_name");
+      if(!name){alert("Please enter a task name.");return;}
+      const vals={name,url:v("mday_url"),startTime:v("mday_start"),endTime:v("mday_end"),priority:mPriority||4};
+      const o={};
+      Object.keys(vals).forEach(k=>{if(vals[k]!==(base[k]||(k==="priority"?4:"")))o[k]=vals[k];});
+      if(Object.keys(o).length) c[ek]=o; else delete c[ek];
+    }
+    saveChks(c);closeModal();renderMain();return;
+  }
   if(a==="edit-task-series"){
     const cid=btn.dataset.cat,tid=btn.dataset.task;
     const row=document.getElementById("row_"+cid+"_"+tid);if(row)unflipRow(row);
@@ -2225,7 +2320,7 @@ function getTasksForDay(wk,day){
   const rows=[];
   cats.forEach(cat=>{
     if(!catOn(cat,di,wk,day)||cat.isHabits) return;
-    catAllTasks(cat,dateStr).forEach(tk=>{
+    catAllTasks(cat,dateStr).map(tk=>dayEdit(tk,cat,day,wk)).forEach(tk=>{
       const chk=!!(ch[day+":"+cat.id+":"+tk.id]);
       const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
       if(skipped&&!chk) return;
