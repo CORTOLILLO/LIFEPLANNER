@@ -497,13 +497,14 @@ function dayEdit(tk,cat,day,wk){
 }
 function catAllTasks(cat,dateStr){
   if(!cat) return [];
-  const loose=cat.tasks||[];
+  const live=tk=>!(dateStr&&tk.deletedAfter&&dateStr>=tk.deletedAfter); // "Stop Here"
+  const loose=(cat.tasks||[]).filter(live);
   const log=cat.routineLog;
   if(!dateStr||!log||!log.length) return loose;
   let rid=null;
   for(const entry of log){ if(entry.start<=dateStr) rid=entry.routineId; else break; }
   const rt=rid?(cat.routines||[]).find(r=>r.id===rid):null;
-  return loose.concat(rt?(rt.tasks||[]):[]);
+  return loose.concat(rt?(rt.tasks||[]).filter(live):[]);
 }
 function getTaskById(cat,tid){
   if(!cat) return null;
@@ -737,6 +738,7 @@ function buildDay(){
     });
     if(catAllTasks(cat,dayDateStr).filter(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
+      if(ch[day+":"+cat.id+":"+tk.id+"__skip"]&&!chk) return false;
       return fApplies(tk.freq,di,dayDateStr)||chk||tk.rollover;
     }).length===0){
       h+='<div style="font-size:13px;opacity:.4;padding:4px 0 8px;font-style:italic">No tasks for today.</div>';
@@ -931,6 +933,7 @@ function buildSchedule(){
     if(!catOn(cat,di,wk,day)||cat.isHabits) return;
     catAllTasks(cat,dayDateStr).map(tk=>dayEdit(tk,cat,day,wk)).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
+      if(ch[day+":"+cat.id+":"+tk.id+"__skip"]&&!chk) return;
       const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di,dayDateStr))&&taskCreatedBeforeOrOnDay(tk,wk,day);
       let show=applies;
       if(tk.rollover){
@@ -1633,12 +1636,12 @@ function taskCreatedBeforeOrOnDay(tk,wk,day){
     }
     return true;
   }
-  if(!tk.createdAt) return true;
   const{sunday}=parseWk(wk);const di=DAYS.indexOf(day);
   const d=new Date(sunday);d.setDate(sunday.getDate()+di);
   const dateStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
   if(tk.deletedAfter&&dateStr>=tk.deletedAfter) return false;
   if(tk.endDate&&dateStr>tk.endDate) return false;
+  if(!tk.createdAt) return true;
   return tk.createdAt<=dateStr;
 }
 
@@ -2083,7 +2086,12 @@ document.addEventListener("click",function(e){
     const cid=btn.dataset.cat,tid=btn.dataset.task,rid=btn.dataset.routine||null;
     const cats=getCats()||[];const cat=cats.find(c=>c.id===cid);
     const found=cat&&findTaskAndArr(cat,tid,rid);
-    if(found){found.task.deletedAfter=new Date().toISOString().split("T")[0];saveCats(cats);}
+    if(found){
+      const{sunday}=parseWk(wkKey());
+      const sd=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+DAYS.indexOf(activeDay));
+      found.task.deletedAfter=sd.getFullYear()+"-"+String(sd.getMonth()+1).padStart(2,"0")+"-"+String(sd.getDate()).padStart(2,"0");
+      saveCats(cats);
+    }
     closeModal();renderMain();return;
   }
   if(a==="del-task-all"){
