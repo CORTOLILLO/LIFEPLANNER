@@ -72,6 +72,14 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:var(-
 .clabel.empty{color:var(--stone);font-style:italic;cursor:text}
 .wi-inp{flex:1;border:none;border-bottom:1.5px solid var(--ac,#C4B5A8);background:transparent;font-size:14px;padding:2px 0;outline:none;color:var(--ink);font-family:var(--sans);font-weight:300}
 .hab-lbl{font-size:9px;letter-spacing:2.5px;font-weight:600;color:var(--ac);margin:10px 0 8px;text-transform:uppercase}
+.win-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #EFE2C8}
+.win-row:last-of-type{border-bottom:none}
+.win-txt{flex:1;font-size:15px;font-weight:300;line-height:1.45;color:var(--ink);word-wrap:break-word;min-width:0}
+.win-x{border:none;background:transparent;color:var(--stone);font-size:18px;line-height:1;padding:0 2px;cursor:pointer;opacity:.6}
+.win-add{display:flex;gap:8px;margin-top:8px}
+.win-add input{flex:1;min-width:0;border:1.5px solid #EFE2C8;border-radius:10px;padding:10px 12px;font-size:15px;font-family:var(--sans);font-weight:300;color:var(--ink);background:var(--white);outline:none}
+.win-add input:focus{border-color:#B08A4E}
+.win-add button{border:none;border-radius:10px;background:#B08A4E;color:#fff;padding:0 14px;font-size:11px;letter-spacing:1px;font-weight:500;font-family:var(--sans);cursor:pointer}
 .more-btn{width:100%;margin-top:4px;padding:9px;border-radius:8px;border:1.5px dashed var(--stone);background:transparent;color:var(--walnut);font-size:11px;font-weight:500;letter-spacing:1px;cursor:pointer;font-family:var(--sans);text-transform:uppercase}
 .wv,.dv{padding:14px 14px 80px}
 .sec-ttl{font-size:9px;letter-spacing:3px;text-transform:uppercase;opacity:.4;margin-bottom:10px;margin-top:18px;font-weight:500}
@@ -666,6 +674,8 @@ function buildDay(){
     +"</div></div>"
     +'</div>';
 
+  h+=winsCard(day,ch);
+
   const activeCats=cats.filter(cat=>catOn(cat,di,wk,activeDay));
   const incomplete=[],empty=[],complete=[];
   activeCats.forEach(cat=>{
@@ -749,6 +759,34 @@ function buildDay(){
   return h;
 }
 
+// ── Wins: things that went well, stored per day in the week's checks
+const WIN_ICON='<path d="M12 3l2.2 5.6L20 9.3l-4.5 3.8 1.4 5.9L12 15.9 7.1 19l1.4-5.9L4 9.3l5.8-.7z" fill="{c}"/>';
+function getWins(day,ch){const w=(ch||chks())[day+":__wins"];return Array.isArray(w)?w:[];}
+function winsCard(day,ch){
+  const wins=getWins(day,ch),isO=openSec==="__wins";
+  let h='<div class="sec-card'+(isO?" open":"")+'" style="--ac:#B08A4E;--bg:#FBF6EC;--lt:#EFE2C8">'
+    +'<button class="sec-hdr" data-action="toggle-sec" data-sec="__wins">'
+    +svgIcon(WIN_ICON,22,"#B08A4E","#F3E6CE")
+    +'<span style="flex:1;font-size:11px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:#B08A4E;margin-left:6px">Wins</span>'
+    +'<span style="font-size:13px;color:#B08A4E;opacity:.8;margin-right:8px">'+(wins.length?wins.length:"")+'</span>'
+    +'<span style="font-size:14px;opacity:.35;color:var(--walnut)">'+(isO?"⌄":"›")+'</span></button>'
+    +'<div class="sec-body">';
+  if(!wins.length) h+='<div style="font-size:13px;opacity:.5;padding:4px 0 6px;line-height:1.5">What went well today? Big or small, it counts.</div>';
+  wins.forEach((w,i)=>{
+    h+='<div class="win-row"><span style="color:#B08A4E;margin-top:1px">✦</span><div class="win-txt">'+esc(w)+'</div>'
+      +'<button class="win-x" data-action="del-win" data-i="'+i+'" aria-label="Remove">×</button></div>';
+  });
+  h+='<div class="win-add"><input id="win_input" maxlength="140" placeholder="Add a win"><button data-action="add-win">Add</button></div>'
+    +'</div></div>';
+  return h;
+}
+function addWin(){
+  const inp=document.getElementById("win_input");const t=(inp&&inp.value||"").trim();
+  if(!t) return;
+  const c=chks();c[activeDay+":__wins"]=getWins(activeDay,c).concat([t]);saveChks(c);
+  openSec="__wins";renderMain();
+  const n=document.getElementById("win_input");if(n) n.focus();
+}
 function divider(label){
   return '<div style="display:flex;align-items:center;gap:10px;margin:16px 14px 8px;opacity:.3">'
     +'<div style="flex:1;height:1px;background:var(--greige)"></div>'
@@ -1828,6 +1866,12 @@ document.addEventListener("click",function(e){
     if(view==="dashboard") view="day";
     openSec=null;render();return;
   }
+  if(a==="add-win"){addWin();return;}
+  if(a==="del-win"){
+    const c=chks(),w=getWins(activeDay,c).slice();w.splice(parseInt(btn.dataset.i),1);
+    if(w.length) c[activeDay+":__wins"]=w; else delete c[activeDay+":__wins"];
+    saveChks(c);renderMain();return;
+  }
   if(a==="toggle-sec"){openSec=openSec===btn.dataset.sec?null:btn.dataset.sec;renderMain();return;}
   if(a==="toggle-setup-sec"){
     setupOpen=setupOpen===btn.dataset.sec?null:btn.dataset.sec;
@@ -2267,6 +2311,10 @@ document.getElementById("task-file-input").addEventListener("change",async funct
     const w2=document.getElementById("mtask_file_wrap");
     if(w2) w2.innerHTML=fileBoxHTML(mFileData?{name:mFileData.name,size:mFileData.size}:(mFileRemove?null:mTaskFileMeta));
   }
+});
+
+document.addEventListener("keydown",function(e){
+  if(e.target.id==="win_input"&&e.key==="Enter"){e.preventDefault();addWin();}
 });
 
 // write-in blur saving
