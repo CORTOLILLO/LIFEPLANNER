@@ -433,6 +433,29 @@ function onceTaskMatchesDay(tk, wk, day){
   const dayStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
   return taskStr===dayStr;
 }
+// Frequency history: changes apply from the day they're made forward.
+// obj.freqHist = [{until:"YYYY-MM-DD", freq:{...}}], oldest first; each entry was in effect before "until".
+function freqAt(obj,dateStr){
+  if(!obj) return {type:"daily"};
+  const hist=obj.freqHist;
+  if(dateStr&&Array.isArray(hist)){
+    for(const h of hist){ if(dateStr<h.until) return h.freq; }
+  }
+  return obj.freq;
+}
+function todayLocalStr(){const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");}
+// Save a new frequency onto a task or category. alsoPast=true rewrites history.
+function setFreq(obj,newFreq,alsoPast){
+  newFreq=Object.assign({},newFreq);
+  if(alsoPast){obj.freq=newFreq;delete obj.freqHist;return;}
+  const old=obj.freq||{type:"daily"};
+  if(JSON.stringify(old)===JSON.stringify(newFreq)) return;
+  const today=todayLocalStr();
+  const hist=Array.isArray(obj.freqHist)?obj.freqHist:[];
+  // Changed again on the same day: keep what was in effect before today, just update the current one
+  if(!(hist.length&&hist[hist.length-1].until===today)) hist.push({until:today,freq:old});
+  obj.freqHist=hist;obj.freq=newFreq;
+}
 function fApplies(f,di,slotDateStr){
   if(!f||f.type==="daily") return true;
   if(f.type==="days") return (f.days||[]).includes(di);
@@ -472,13 +495,13 @@ function fApplies(f,di,slotDateStr){
 }
 function catOn(cat,di,wk,day){
   if(cat.isHabits) return true;
-  const freq=cat.freq||{type:"daily"};
   let dStr=null;
   if(wk&&day){const{sunday}=parseWk(wk);const dd=new Date(sunday.getFullYear(),sunday.getMonth(),sunday.getDate()+DAYS.indexOf(day));dStr=dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0");}
+  const freq=freqAt(cat,dStr)||{type:"daily"};
   if(freq.type==="task-days"){
     return catAllTasks(cat,dStr).some(tk=>{
       if(tk.freq&&tk.freq.type==="once") return wk&&day?onceTaskMatchesDay(tk,wk,day):false;
-      return fApplies(tk.freq,di,dStr);
+      return fApplies(freqAt(tk,dStr),di,dStr);
     });
   }
   return fApplies(freq,di,dStr);
@@ -553,7 +576,7 @@ function catProg(cat,day,wk){
     const checked=isChk(day+":"+cat.id+":"+tk.id);
     const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
     if(skipped&&!checked) return;
-    const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di,_slotStr))&&taskCreatedBeforeOrOnDay(tk,wk,day);
+    const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(freqAt(tk,_slotStr),di,_slotStr))&&taskCreatedBeforeOrOnDay(tk,wk,day);
     if(tk.rollover){
       const activeDate=getActiveRolloverDate(tk,cat);
       if(activeDate){
@@ -730,7 +753,7 @@ function buildDay(){
       const _wkSun2=parseWk(wk).sunday;
       const _dd2=new Date(_wkSun2.getFullYear(),_wkSun2.getMonth(),_wkSun2.getDate()+di);
       const _slotStr2=_dd2.getFullYear()+"-"+String(_dd2.getMonth()+1).padStart(2,"0")+"-"+String(_dd2.getDate()).padStart(2,"0");
-      const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di,_slotStr2))&&taskCreatedBeforeOrOnDay(tk,wk,day);
+      const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(freqAt(tk,_slotStr2),di,_slotStr2))&&taskCreatedBeforeOrOnDay(tk,wk,day);
       if(tk.rollover){
         const activeDate=getActiveRolloverDate(tk,cat);
         const wkParts=wk.split("-");
@@ -749,7 +772,7 @@ function buildDay(){
     if(catAllTasks(cat,dayDateStr).filter(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       if(ch[day+":"+cat.id+":"+tk.id+"__skip"]&&!chk) return false;
-      return fApplies(tk.freq,di,dayDateStr)||chk||tk.rollover;
+      return fApplies(freqAt(tk,dayDateStr),di,dayDateStr)||chk||tk.rollover;
     }).length===0){
       h+='<div style="font-size:13px;opacity:.4;padding:4px 0 8px;font-style:italic">No tasks for today.</div>';
     }
@@ -893,7 +916,7 @@ function buildPriorities(){
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       const skipped=!!(ch[day+":"+cat.id+":"+tk.id+"__skip"]);
       if(skipped&&!chk) return;
-      const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di,dayDateStr))&&taskCreatedBeforeOrOnDay(tk,wk,day);
+      const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(freqAt(tk,dayDateStr),di,dayDateStr))&&taskCreatedBeforeOrOnDay(tk,wk,day);
 
       let show=applies;
       if(tk.rollover){
@@ -972,7 +995,7 @@ function buildSchedule(){
     catAllTasks(cat,dayDateStr).map(tk=>dayEdit(tk,cat,day,wk)).forEach(tk=>{
       const chk=chkVal(day+":"+cat.id+":"+tk.id);
       if(ch[day+":"+cat.id+":"+tk.id+"__skip"]&&!chk) return;
-      const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(tk.freq,di,dayDateStr))&&taskCreatedBeforeOrOnDay(tk,wk,day);
+      const applies=(tk.freq&&tk.freq.type==="once"?onceTaskMatchesDay(tk,wk,day):fApplies(freqAt(tk,dayDateStr),di,dayDateStr))&&taskCreatedBeforeOrOnDay(tk,wk,day);
       let show=applies;
       if(tk.rollover){
         const activeDate=getActiveRolloverDate(tk,cat);
@@ -1438,6 +1461,9 @@ function modalCat(catId){
   h+='</div><div class="mo-lbl">Color</div><div class="cgrid">';
   PALETTE.forEach((p,i)=>{h+='<div class="csw'+(cat.color===i?" active":"")+'" style="background:'+p.ac+'" data-color-pick="'+i+'"></div>';});
   h+='</div><div class="mo-lbl">Frequency</div>'+freqUI("mcat",true)
+    +(catId?'<label style="display:flex;align-items:flex-start;gap:10px;margin-top:12px;font-size:12px;color:var(--walnut);line-height:1.5;cursor:pointer">'
+      +'<input type="checkbox" id="mcat_past" style="width:18px;height:18px;margin-top:1px;accent-color:var(--walnut);flex-shrink:0">'
+      +'<span>Also change past days<br><span style="opacity:.6">Leave this off and the new schedule starts today. Past days keep the old one.</span></span></label>':'')
     +'<button class="mo-save" data-action="save-cat">Save Category</button>'
     +(catId?'<button class="mo-del" data-action="del-cat-modal">Delete Category</button>':"")
     +'<button class="mo-cancel" data-action="close-modal">Cancel</button>';
@@ -1516,6 +1542,9 @@ function modalTask(catId,taskId,routineId){
     +'<input class="mo-inp sm" id="mtask_end" type="time" value="'+esc(task.endTime||"")+'"></div>'
     +'</div>'
     +'<div class="mo-lbl">Frequency</div>'+freqUI("mtask")
+    +(taskId?'<label style="display:flex;align-items:flex-start;gap:10px;margin-top:12px;font-size:12px;color:var(--walnut);line-height:1.5;cursor:pointer">'
+      +'<input type="checkbox" id="mtask_past" style="width:18px;height:18px;margin-top:1px;accent-color:var(--walnut);flex-shrink:0">'
+      +'<span>Also change past days<br><span style="opacity:.6">Leave this off and the new schedule starts today. Past days keep the old one.</span></span></label>':'')
     +'<div style="display:flex;align-items:center;gap:12px;margin-top:18px;padding:14px;background:var(--ivory);border-radius:10px">'
     +'<input type="checkbox" id="mtask_rollover" '+(task.rollover?"checked":"")+' style="width:20px;height:20px;cursor:pointer;accent-color:var(--walnut)">'
     +'<div><div style="font-size:13px;font-weight:500;color:var(--mocha)">Roll over if not completed</div>'
@@ -1935,7 +1964,7 @@ document.addEventListener("click",function(e){
       const fy=document.getElementById("mcat_year");if(fy)mFreq.year=parseInt(fy.value);
     }
     const cats=getCats()||[];
-    if(mCatId){const cat=cats.find(c=>c.id===mCatId);if(cat){cat.name=name.trim().toUpperCase();cat.icon=icon;cat.color=color;cat.freq=Object.assign({},mFreq);}}
+    if(mCatId){const cat=cats.find(c=>c.id===mCatId);if(cat){cat.name=name.trim().toUpperCase();cat.icon=icon;cat.color=color;setFreq(cat,mFreq,!!(document.getElementById("mcat_past")||{}).checked);}}
     else{cats.push({id:"cat_"+Date.now(),name:name.trim().toUpperCase(),icon,color,freq:Object.assign({},mFreq),tasks:[]});}
     saveCats(cats);closeModal();renderMain();return;
   }
@@ -2021,7 +2050,7 @@ document.addEventListener("click",function(e){
       const tk=targetRoutine?(targetRoutine.tasks||[]).find(t=>t.id===mTaskId):cat.tasks.find(t=>t.id===mTaskId);
       if(tk){
         const endDateVal2=((document.getElementById("mtask_enddate")||{}).value||"").trim();
-        tk.name=name.trim();tk.freq=Object.assign({},mFreq);tk.rollover=rollover;tk.url=url;tk.startTime=startTime;tk.endTime=endTime;tk.priority=priority;tk.endDate=endDateVal2||undefined;
+        tk.name=name.trim();setFreq(tk,mFreq,!!(document.getElementById("mtask_past")||{}).checked);tk.rollover=rollover;tk.url=url;tk.startTime=startTime;tk.endTime=endTime;tk.priority=priority;tk.endDate=endDateVal2||undefined;
         applyFile(tk);
         if(moveToCat&&!targetRoutine){cat.tasks=cat.tasks.filter(t=>t.id!==mTaskId);const newCat=cats.find(c=>c.id===moveToCat);if(newCat)newCat.tasks.push(tk);}
       }
@@ -2382,7 +2411,7 @@ function getTasksForDay(wk,day){
       if(skipped&&!chk) return;
       const applies=tk.freq&&tk.freq.type==="once"
         ?onceTaskMatchesDay(tk,wk,day)
-        :fApplies(tk.freq,di,dateStr);
+        :fApplies(freqAt(tk,dateStr),di,dateStr);
       if(!taskCreatedBeforeOrOnDay(tk,wk,day)) return;
       const pr=PRIORITIES.find(p=>p.id===(tk.priority||4));
       if(tk.rollover){
