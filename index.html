@@ -446,14 +446,14 @@ function freqAt(obj,dateStr){
 function todayLocalStr(){const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");}
 // Save a new frequency onto a task or category. alsoPast=true rewrites history.
 function setFreq(obj,newFreq,alsoPast){
-  newFreq=Object.assign({},newFreq);
+  newFreq=JSON.parse(JSON.stringify(newFreq));
   if(alsoPast){obj.freq=newFreq;delete obj.freqHist;return;}
   const old=obj.freq||{type:"daily"};
   if(JSON.stringify(old)===JSON.stringify(newFreq)) return;
   const today=todayLocalStr();
   const hist=Array.isArray(obj.freqHist)?obj.freqHist:[];
   // Changed again on the same day: keep what was in effect before today, just update the current one
-  if(!(hist.length&&hist[hist.length-1].until===today)) hist.push({until:today,freq:old});
+  if(!(hist.length&&hist[hist.length-1].until===today)) hist.push({until:today,freq:JSON.parse(JSON.stringify(old))});
   obj.freqHist=hist;obj.freq=newFreq;
 }
 function fApplies(f,di,slotDateStr){
@@ -1452,7 +1452,7 @@ function modalCat(catId){
   const cats=getCats()||[];
   const cat=catId?cats.find(c=>c.id===catId):{id:null,name:"",icon:"✅",color:0,freq:{type:"daily"}};
   mCatId=catId||null;
-  mFreq=Object.assign({},cat.freq||{type:"daily"});
+  mFreq=JSON.parse(JSON.stringify(cat.freq||{type:"daily"}));
   let h='<div class="mo-title">'+(catId?"Edit":"New")+" Category</div>"
     +'<div class="mo-lbl">Name</div>'
     +'<input class="mo-inp" id="mcat_name" placeholder="Category name" maxlength="30" value="'+esc(cat.name||"")+'">'
@@ -1510,7 +1510,7 @@ function modalTask(catId,taskId,routineId){
     }
   }
   task=task||{id:null,name:"",freq:{type:"daily"},rollover:false,url:"",priority:4};
-  mFreq=Object.assign({},task.freq||{type:"daily"});
+  mFreq=JSON.parse(JSON.stringify(task.freq||{type:"daily"}));
   mFileData=null;mFileRemove=false;mTaskFileMeta=task.file||null;
   const curPriority=task.priority||4;
   const routineName=mRoutineId?(((cat.routines||[]).find(r=>r.id===mRoutineId)||{}).name||""):"";
@@ -1965,7 +1965,7 @@ document.addEventListener("click",function(e){
     }
     const cats=getCats()||[];
     if(mCatId){const cat=cats.find(c=>c.id===mCatId);if(cat){cat.name=name.trim().toUpperCase();cat.icon=icon;cat.color=color;setFreq(cat,mFreq,!!(document.getElementById("mcat_past")||{}).checked);}}
-    else{cats.push({id:"cat_"+Date.now(),name:name.trim().toUpperCase(),icon,color,freq:Object.assign({},mFreq),tasks:[]});}
+    else{cats.push({id:"cat_"+Date.now(),name:name.trim().toUpperCase(),icon,color,freq:JSON.parse(JSON.stringify(mFreq)),tasks:[]});}
     saveCats(cats);closeModal();renderMain();return;
   }
   if(a==="del-cat"){
@@ -2056,7 +2056,7 @@ document.addEventListener("click",function(e){
       }
     } else {
       const endDateVal=((document.getElementById("mtask_enddate")||{}).value||"").trim();
-      const newTask={id:"task_"+Date.now(),name:name.trim(),freq:Object.assign({},mFreq),rollover,url,startTime,endTime,priority,endDate:endDateVal||undefined,createdAt:(()=>{const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");})()};
+      const newTask={id:"task_"+Date.now(),name:name.trim(),freq:JSON.parse(JSON.stringify(mFreq)),rollover,url,startTime,endTime,priority,endDate:endDateVal||undefined,createdAt:(()=>{const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");})()};
       applyFile(newTask);
       if(targetRoutine){targetRoutine.tasks=targetRoutine.tasks||[];targetRoutine.tasks.push(newTask);}
       else{cat.tasks.push(newTask);}
