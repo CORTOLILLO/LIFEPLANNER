@@ -205,6 +205,7 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:var(-
 .pin-sub{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--stone);margin-bottom:40px}
 .pin-input-wrap{display:flex;flex-direction:column;align-items:center;gap:16px;width:100%;max-width:260px}
 #pin-input{width:100%;text-align:center;font-size:28px;letter-spacing:12px;border:none;border-bottom:2px solid var(--greige);background:transparent;outline:none;color:var(--mocha);font-family:var(--sans);padding:8px 0;-webkit-text-security:disc}
+.login-field{width:100%;text-align:center;font-size:16px;border:none;border-bottom:2px solid var(--greige);background:transparent;outline:none;color:var(--mocha);font-family:var(--sans);padding:10px 0}
 #pin-error{font-size:12px;color:#c0392b;min-height:16px;letter-spacing:.5px}
 #pin-submit{width:100%;padding:14px;border-radius:14px;border:none;background:var(--walnut);color:var(--ivory);font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)}
 .pin-flower{font-size:44px;margin-bottom:16px}
@@ -213,11 +214,12 @@ html,body{height:100%;background:var(--ivory);color:var(--ink);font-family:var(-
 <div id="pin-screen">
   <div class="pin-flower">🌸</div>
   <div class="pin-title">Life Planner</div>
-  <div class="pin-sub">Enter your PIN to continue</div>
+  <div class="pin-sub">Sign in to continue</div>
   <div class="pin-input-wrap">
-    <input id="pin-input" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="off"/>
+    <input id="login-email" class="login-field" type="email" placeholder="Email" autocomplete="username" autocapitalize="none" spellcheck="false"/>
+    <input id="login-password" class="login-field" type="password" placeholder="Password" autocomplete="current-password"/>
     <div id="pin-error"></div>
-    <button id="pin-submit">Unlock</button>
+    <button id="pin-submit">Sign In</button>
   </div>
 </div>
 <input type="file" id="import-file-input" accept=".json" style="display:none"/>
@@ -324,32 +326,80 @@ const PRIORITIES=[
 const SUPABASE_URL="https://tgwdkhjbhhhzevgmuiyi.supabase.co";
 const SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRnd2RraGpiaGhoemV2Z211aXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzA5NjYsImV4cCI6MjA5MDg0Njk2Nn0.dNjQTwVi4TrXuM1n-xbAb1gnFfDO3ZfAoyOmC8zgPUE";
 
+// ── Sign-in session ───────────────────────────────────────────────────────────
+// The key above only identifies the project. Reading or changing planner data
+// needs a signed-in session; the database rules reject everything else.
+let sbSession=null;
+try{sbSession=JSON.parse(localStorage.getItem("sb_session")||"null");}catch{sbSession=null;}
+function sbSaveSession(x){
+  sbSession=x;
+  try{if(x)localStorage.setItem("sb_session",JSON.stringify(x));else localStorage.removeItem("sb_session");}catch{}
+}
+function sbStoreTokens(d){
+  sbSaveSession({access_token:d.access_token,refresh_token:d.refresh_token,expires_at:Date.now()+(d.expires_in||3600)*1000});
+}
+async function sbSignIn(email,password){
+  const r=await fetch(SUPABASE_URL+"/auth/v1/token?grant_type=password",{
+    method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},
+    body:JSON.stringify({email,password})
+  });
+  if(!r.ok) return false;
+  sbStoreTokens(await r.json());return true;
+}
+let _sbRefreshing=null;
+function sbRefresh(){
+  if(!sbSession||!sbSession.refresh_token) return Promise.resolve(false);
+  if(_sbRefreshing) return _sbRefreshing;
+  _sbRefreshing=(async()=>{
+    try{
+      const r=await fetch(SUPABASE_URL+"/auth/v1/token?grant_type=refresh_token",{
+        method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},
+        body:JSON.stringify({refresh_token:sbSession.refresh_token})
+      });
+      if(r.ok){sbStoreTokens(await r.json());return true;}
+      if(r.status===400||r.status===401||r.status===403) sbSaveSession(null); // sign-in no longer valid
+      return false;
+    }catch{return false;} // offline: keep the session and try again later
+    finally{_sbRefreshing=null;}
+  })();
+  return _sbRefreshing;
+}
+async function sbSignOut(){
+  const tok=sbSession&&sbSession.access_token;
+  sbSaveSession(null);
+  if(tok){try{await fetch(SUPABASE_URL+"/auth/v1/logout",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+tok}});}catch{}}
+  showLogin("");
+}
+async function sbFetch(url,opts,extra){
+  if(sbSession&&sbSession.expires_at-Date.now()<60000) await sbRefresh();
+  const go=()=>fetch(url,Object.assign({},opts||{},{headers:Object.assign(
+    {"apikey":SUPABASE_KEY,"Authorization":"Bearer "+(sbSession?sbSession.access_token:SUPABASE_KEY)},extra||{})}));
+  let r=await go();
+  if(r.status===401&&await sbRefresh()) r=await go();
+  if(r.status===401){sbSaveSession(null);showLogin("Please sign in again.");}
+  return r;
+}
+
 async function sbGet(id){
   try{
-    const r=await fetch(SUPABASE_URL+"/rest/v1/planner_data?id=eq."+id+"&select=data",{
-      headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY}
-    });
+    const r=await sbFetch(SUPABASE_URL+"/rest/v1/planner_data?id=eq."+id+"&select=data");
+    if(!r.ok) return null;
     const d=await r.json();
     return d&&d[0]?d[0].data:null;
   }catch{return null;}
 }
 async function sbSet(id,data){
   try{
-    const r=await fetch(SUPABASE_URL+"/rest/v1/planner_data",{
+    const r=await sbFetch(SUPABASE_URL+"/rest/v1/planner_data",{
       method:"POST",
-      headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,
-        "Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},
       body:JSON.stringify({id,data,updated_at:new Date().toISOString()})
-    });
+    },{"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"});
     return r.ok;
   }catch(e){console.error("sbSet error",e);return false;}
 }
 async function sbDel(id){
   try{
-    await fetch(SUPABASE_URL+"/rest/v1/planner_data?id=eq."+id,{
-      method:"DELETE",
-      headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY}
-    });
+    await sbFetch(SUPABASE_URL+"/rest/v1/planner_data?id=eq."+id,{method:"DELETE"});
   }catch(e){console.error("sbDel error",e);}
 }
 
@@ -1157,6 +1207,7 @@ function buildSetup(){
       +'<div style="font-size:12px;color:var(--walnut);line-height:1.6;padding:12px;background:var(--greige);border-radius:10px">Export saves all your categories and tasks. Import restores them from a backup file. Attached files stay saved online and aren\'t included in the backup file.</div>'
       +'<button class="done-btn" data-action="export-all" style="background:var(--walnut)">⬇ Export Backup</button>'
       +'<button class="add-cat-btn" data-action="import-all">⬆ Import Backup</button>'
+      +'<button class="add-cat-btn" data-action="sign-out">Sign Out</button>'
       +"</div>";
   }
 
@@ -1916,6 +1967,7 @@ document.addEventListener("click",function(e){
     return;
   }
   if(a==="export-all"){exportAll();return;}
+  if(a==="sign-out"){sbSignOut();return;}
   if(a==="import-all"){importAll();return;}
   if(a==="export-week"){exportWeek();return;}
   if(a==="export-month"){exportMonth();return;}
@@ -2502,23 +2554,35 @@ function exportCustom(){
 }
 
 
-// ── PIN ────────────────────────────────────────────────────────────────────────
-const CORRECT_PIN="6452";
+// ── Sign in ────────────────────────────────────────────────────────────────────
 let pinUnlocked=false;
+function showLogin(msg){
+  pinUnlocked=false;
+  document.getElementById("pin-screen").style.display="flex";
+  document.getElementById("header").style.display="none";
+  document.getElementById("main").innerHTML="";
+  document.getElementById("pin-error").textContent=msg||"";
+  setTimeout(()=>{const el=document.getElementById("login-email");if(el)(el.value?document.getElementById("login-password"):el).focus();},100);
+}
 async function checkPin(){
-  const entered=document.getElementById("pin-input").value;
-  if(entered===CORRECT_PIN){
-    pinUnlocked=true;
-    ls.set("pin_session",Date.now());
+  const emailEl=document.getElementById("login-email"),pwEl=document.getElementById("login-password");
+  const err=document.getElementById("pin-error"),btn=document.getElementById("pin-submit");
+  const email=emailEl.value.trim(),pw=pwEl.value;
+  if(!email||!pw){err.textContent="Enter your email and password.";return;}
+  if(btn.disabled) return;
+  btn.disabled=true;err.textContent="";
+  let ok=false,reached=true;
+  try{ok=await sbSignIn(email,pw);}catch{reached=false;}
+  btn.disabled=false;
+  if(ok){
+    pinUnlocked=true;pwEl.value="";
     document.getElementById("pin-screen").style.display="none";
     document.getElementById("header").style.display="";
     document.getElementById("main").innerHTML='<div style="text-align:center;padding:100px 30px;opacity:.4"><div style="font-family:\'Cormorant Garamond\',serif;font-size:22px;font-style:italic;color:var(--mocha)">Loading your planner...</div></div>';
     await loadFromSupabase();initCats();render();
   } else {
-    const err=document.getElementById("pin-error");
-    err.textContent="Incorrect PIN. Try again.";
-    document.getElementById("pin-input").value="";
-    setTimeout(()=>err.textContent="",2000);
+    err.textContent=reached?"That email or password didn't match.":"Couldn't reach the server. Check your connection.";
+    if(reached) pwEl.value="";
   }
 }
 document.addEventListener("keydown",function(e){if(!pinUnlocked&&e.key==="Enter")checkPin();});
@@ -2582,20 +2646,18 @@ async function handleImport(e){
 async function boot(){
   document.getElementById("main").innerHTML='<div style="text-align:center;padding:100px 30px;opacity:.4"><div style="font-family:Cormorant Garamond,serif;font-size:22px;font-style:italic;color:var(--mocha)">Loading your planner...</div></div>';
   document.getElementById("header").style.display="none";
-  await loadFromSupabase();
-  const session=ls.get("pin_session",0);
-  const days7=7*24*60*60*1000;
-  if(Date.now()-session<days7){
-    pinUnlocked=true;
-    document.getElementById("pin-screen").style.display="none";
-    document.getElementById("header").style.display="";
-    initCats();render();
-  } else {
-    document.getElementById("pin-screen").style.display="flex";
-    document.getElementById("header").style.display="none";
-    document.getElementById("main").innerHTML="";
-    setTimeout(()=>document.getElementById("pin-input").focus(),100);
+  try{localStorage.removeItem("pin_session");}catch{}
+  if(sbSession){
+    await loadFromSupabase(); // refreshes the sign-in if needed; clears it if it is no longer valid
+    if(sbSession){
+      pinUnlocked=true;
+      document.getElementById("pin-screen").style.display="none";
+      document.getElementById("header").style.display="";
+      initCats();render();
+      return;
+    }
   }
+  showLogin(document.getElementById("pin-error").textContent);
 }
 
 document.getElementById("import-file-input").addEventListener("change",handleImport);
