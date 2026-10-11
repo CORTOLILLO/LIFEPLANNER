@@ -425,13 +425,57 @@ function saveCats(c){_cats=c;ls.set("cats_backup",c);sbSet("categories",c);}
 
 async function loadFromSupabase(){
   const cats=await sbGet("categories");
-  _cats=(cats&&Array.isArray(cats))?cats:(ls.get("cats_backup")||[]);
+  _catsFresh=!!(cats&&Array.isArray(cats));
+  _cats=_catsFresh?cats:(ls.get("cats_backup")||[]);
   const cu=await sbGet("custom_data");
   _custom=(cu&&typeof cu==="object")?cu:{};
   const allChecks=await sbGet("all_checks");
   _checks=(allChecks&&typeof allChecks==="object")?allChecks:{};
   const st=await sbGet("settings");
   _settings=(st&&typeof st==="object")?st:(ls.get("settings_backup")||{});
+  await mergeInbox();
+}
+
+// ── Inbox ──────────────────────────────────────────────────────────────────────
+// Tasks queued from outside the app (rows with id "inbox_...") are moved into
+// their category here, then removed from the queue. Runs only when the
+// categories were just read from the server, so a stale local copy is never
+// written back.
+let _catsFresh=false,_inboxBusy=false;
+async function mergeInbox(){
+  if(_inboxBusy||!_catsFresh||!sbSession||!Array.isArray(_cats)||!_cats.length) return false;
+  _inboxBusy=true;
+  try{
+    const r=await sbFetch(SUPABASE_URL+"/rest/v1/planner_data?id=like.inbox_*&select=id,data");
+    if(!r.ok) return false;
+    const rows=await r.json();
+    if(!Array.isArray(rows)||!rows.length) return false;
+    const handled=[];let added=0;
+    rows.forEach((row,i)=>{
+      const it=row&&row.data;
+      if(!it||typeof it.name!=="string"||!it.name.trim()||!/^\d{4}-\d{2}-\d{2}$/.test(it.date||"")) return;
+      const want=String(it.category||"PREPARATION").toUpperCase();
+      const cat=_cats.find(c=>!c.isHabits&&String(c.name||"").toUpperCase()===want);
+      if(!cat) return; // no matching category yet: leave it queued
+      const dup=!!it.key&&_cats.some(c=>(c.tasks||[]).concat(...(c.routines||[]).map(rt=>rt.tasks||[])).some(t=>t&&t.srcKey===it.key));
+      if(!dup){
+        const d=it.date.split("-").map(Number);
+        cat.tasks=cat.tasks||[];
+        const tk={id:"task_"+(Date.now()+i),name:it.name.trim().slice(0,200),freq:{type:"once",year:d[0],month:d[1]-1,date:d[2]},rollover:true,url:typeof it.url==="string"?it.url:"",startTime:"",endTime:"",priority:[1,2,3,4].includes(it.priority)?it.priority:4,createdAt:todayStr(),addedBy:"claude"};
+        if(it.key) tk.srcKey=it.key;
+        cat.tasks.push(tk);
+        added++;
+      }
+      handled.push(row.id);
+    });
+    if(added){
+      ls.set("cats_backup",_cats);
+      if(!(await sbSet("categories",_cats))) return true; // keep the queue; next load finishes the job
+    }
+    for(const id of handled) await sbDel(encodeURIComponent(id));
+    return added>0;
+  }catch(e){console.error("inbox",e);return false;}
+  finally{_inboxBusy=false;}
 }
 function saveSettings(){ls.set("settings_backup",_settings);sbSet("settings",_settings);}
 function showDayProgress(){return _settings.showDayProgress!==false;}
@@ -2661,6 +2705,17 @@ async function boot(){
 }
 
 document.getElementById("import-file-input").addEventListener("change",handleImport);
+// Coming back to the app after a while: refresh from the server so anything
+// added elsewhere (another device, or the inbox) shows up without a restart.
+let _hiddenAt=0;
+document.addEventListener("visibilitychange",async function(){
+  if(document.hidden){_hiddenAt=Date.now();return;}
+  if(!pinUnlocked||!_hiddenAt||Date.now()-_hiddenAt<5*60*1000) return;
+  _hiddenAt=0;
+  const mo=document.getElementById("mo");if(mo&&!mo.classList.contains("hidden")) return; // a dialog is open: leave it alone
+  await loadFromSupabase();
+  if(pinUnlocked){initCats();render();}
+});
 migrateLegacyChecks();
 boot();
 window.addEventListener("resize",()=>{
