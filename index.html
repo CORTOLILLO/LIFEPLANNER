@@ -430,7 +430,8 @@ async function loadFromSupabase(){
   const cu=await sbGet("custom_data");
   _custom=(cu&&typeof cu==="object")?cu:{};
   const allChecks=await sbGet("all_checks");
-  _checks=(allChecks&&typeof allChecks==="object")?allChecks:{};
+  _checksFresh=!!(allChecks&&typeof allChecks==="object");
+  _checks=_checksFresh?allChecks:{};
   const st=await sbGet("settings");
   _settings=(st&&typeof st==="object")?st:(ls.get("settings_backup")||{});
   await mergeInbox();
@@ -440,8 +441,9 @@ async function loadFromSupabase(){
 // Tasks queued from outside the app (rows with id "inbox_...") are moved into
 // their category here, then removed from the queue. Runs only when the
 // categories were just read from the server, so a stale local copy is never
-// written back.
-let _catsFresh=false,_inboxBusy=false;
+// written back. Two other kinds of row: {action:"move"} changes a one-time
+// task's date, {action:"skip"} skips one task on one day (like Skip Today).
+let _catsFresh=false,_checksFresh=false,_inboxBusy=false;
 async function mergeInbox(){
   if(_inboxBusy||!_catsFresh||!sbSession||!Array.isArray(_cats)||!_cats.length) return false;
   _inboxBusy=true;
@@ -450,9 +452,26 @@ async function mergeInbox(){
     if(!r.ok) return false;
     const rows=await r.json();
     if(!Array.isArray(rows)||!rows.length) return false;
-    const handled=[];let added=0;
+    const handled=[];let added=0,skips=0;
     rows.forEach((row,i)=>{
       const it=row&&row.data;
+      if(it&&it.action==="move"){
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(it.date||"")) return;
+        const cat=_cats.find(c=>c.id===it.catId);
+        const tk=cat&&(cat.tasks||[]).find(t=>t&&t.id===it.taskId);
+        if(tk&&tk.freq&&tk.freq.type==="once"){
+          const d=it.date.split("-").map(Number);
+          tk.freq=Object.assign({},tk.freq,{year:d[0],month:d[1]-1,date:d[2]});
+          added++;
+        }
+        handled.push(row.id);return; // task gone or no longer one-time: nothing to move
+      }
+      if(it&&it.action==="skip"){
+        if(!_checksFresh||typeof it.wk!=="string"||typeof it.k!=="string") return; // retry on a later load
+        const w=_checks[it.wk]=_checks[it.wk]||{};
+        if(!w[it.k]&&!w[it.wk+":"+it.k]&&!w[it.k+"__skip"]){w[it.k+"__skip"]=true;skips++;}
+        handled.push(row.id);return;
+      }
       if(!it||typeof it.name!=="string"||!it.name.trim()||!/^\d{4}-\d{2}-\d{2}$/.test(it.date||"")) return;
       const want=String(it.category||"PREPARATION").toUpperCase();
       const cat=_cats.find(c=>!c.isHabits&&String(c.name||"").toUpperCase()===want);
@@ -472,8 +491,9 @@ async function mergeInbox(){
       ls.set("cats_backup",_cats);
       if(!(await sbSet("categories",_cats))) return true; // keep the queue; next load finishes the job
     }
+    if(skips&&!(await sbSet("all_checks",_checks))) return true;
     for(const id of handled) await sbDel(encodeURIComponent(id));
-    return added>0;
+    return added+skips>0;
   }catch(e){console.error("inbox",e);return false;}
   finally{_inboxBusy=false;}
 }
