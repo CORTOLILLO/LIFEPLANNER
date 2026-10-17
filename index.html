@@ -428,7 +428,8 @@ async function loadFromSupabase(){
   _catsFresh=!!(cats&&Array.isArray(cats));
   _cats=_catsFresh?cats:(ls.get("cats_backup")||[]);
   const cu=await sbGet("custom_data");
-  _custom=(cu&&typeof cu==="object")?cu:{};
+  _customFresh=!!(cu&&typeof cu==="object");
+  _custom=_customFresh?cu:{};
   const allChecks=await sbGet("all_checks");
   _checksFresh=!!(allChecks&&typeof allChecks==="object");
   _checks=_checksFresh?allChecks:{};
@@ -441,9 +442,11 @@ async function loadFromSupabase(){
 // Tasks queued from outside the app (rows with id "inbox_...") are moved into
 // their category here, then removed from the queue. Runs only when the
 // categories were just read from the server, so a stale local copy is never
-// written back. Two other kinds of row: {action:"move"} changes a one-time
-// task's date, {action:"skip"} skips one task on one day (like Skip Today).
-let _catsFresh=false,_checksFresh=false,_inboxBusy=false;
+// written back. Other kinds of row: {action:"move"} changes a one-time
+// task's date, {action:"skip"} skips one task on one day (like Skip Today),
+// {action:"edit"} changes a task like the Edit Task form, {action:"habit"}
+// fills an empty habit slot for one day.
+let _catsFresh=false,_checksFresh=false,_customFresh=false,_inboxBusy=false;
 async function mergeInbox(){
   if(_inboxBusy||!_catsFresh||!sbSession||!Array.isArray(_cats)||!_cats.length) return false;
   _inboxBusy=true;
@@ -452,7 +455,7 @@ async function mergeInbox(){
     if(!r.ok) return false;
     const rows=await r.json();
     if(!Array.isArray(rows)||!rows.length) return false;
-    const handled=[];let added=0,skips=0;
+    const handled=[];let added=0,skips=0,habits=0;
     rows.forEach((row,i)=>{
       const it=row&&row.data;
       if(it&&it.action==="move"){
@@ -472,17 +475,55 @@ async function mergeInbox(){
         if(!w[it.k]&&!w[it.wk+":"+it.k]&&!w[it.k+"__skip"]){w[it.k+"__skip"]=true;skips++;}
         handled.push(row.id);return;
       }
+      if(it&&it.action==="edit"){
+        const cat=_cats.find(c=>c.id===it.catId);
+        const rt=cat&&it.routineId?(cat.routines||[]).find(r=>r.id===it.routineId):null;
+        const arr=cat?(it.routineId?(rt?rt.tasks||[]:[]):(cat.tasks||[])):[];
+        const tk=arr.find(t=>t&&t.id===it.taskId);
+        const st=it.set&&typeof it.set==="object"?it.set:{};
+        if(tk){
+          if(typeof st.name==="string"&&st.name.trim()) tk.name=st.name.trim().slice(0,200);
+          if([1,2,3,4].includes(st.priority)) tk.priority=st.priority;
+          ["startTime","endTime"].forEach(f=>{if(typeof st[f]==="string"&&/^(\d{2}:\d{2})?$/.test(st[f])) tk[f]=st[f];});
+          if(typeof st.rollover==="boolean") tk.rollover=st.rollover;
+          if(st.endDate===null) delete tk.endDate; else if(/^\d{4}-\d{2}-\d{2}$/.test(st.endDate||"")) tk.endDate=st.endDate;
+          if(typeof st.url==="string") tk.url=st.url.slice(0,500);
+          if(validFreq(st.freq)) setFreq(tk,st.freq,tk.freq&&tk.freq.type==="once"&&st.freq.type==="once");
+          if(st.moveToCatId&&!it.routineId){const nc=_cats.find(c=>c.id===st.moveToCatId&&!c.isHabits);if(nc){cat.tasks=cat.tasks.filter(t=>t.id!==tk.id);nc.tasks=nc.tasks||[];nc.tasks.push(tk);}}
+          added++;
+        }
+        handled.push(row.id);return; // task gone: nothing to edit
+      }
+      if(it&&it.action==="habit"){
+        if(!_customFresh||typeof it.wk!=="string"||typeof it.day!=="string"||!["forMe","forUs"].includes(it.who)||typeof it.text!=="string") return; // retry later
+        const base=it.wk+":"+it.day+":hab_"+it.who+"_";
+        const vals=[0,1,2].map(j=>String(_custom[base+j]||""));
+        if(!vals.some(v=>v.trim().toLowerCase()===it.text.trim().toLowerCase())){
+          const j=vals.findIndex(v=>!v);
+          if(j>=0){_custom[base+j]=it.text.trim().slice(0,120);habits++;}
+        }
+        handled.push(row.id);return;
+      }
       if(!it||typeof it.name!=="string"||!it.name.trim()||!/^\d{4}-\d{2}-\d{2}$/.test(it.date||"")) return;
       const want=String(it.category||"PREPARATION").toUpperCase();
-      const cat=_cats.find(c=>!c.isHabits&&String(c.name||"").toUpperCase()===want);
+      const cat=(it.catId&&_cats.find(c=>c.id===it.catId&&!c.isHabits))||_cats.find(c=>!c.isHabits&&String(c.name||"").toUpperCase()===want);
       if(!cat) return; // no matching category yet: leave it queued
       const dup=!!it.key&&_cats.some(c=>(c.tasks||[]).concat(...(c.routines||[]).map(rt=>rt.tasks||[])).some(t=>t&&t.srcKey===it.key));
       if(!dup){
         const d=it.date.split("-").map(Number);
-        cat.tasks=cat.tasks||[];
-        const tk={id:"task_"+(Date.now()+i),name:it.name.trim().slice(0,200),freq:{type:"once",year:d[0],month:d[1]-1,date:d[2]},rollover:true,url:typeof it.url==="string"?it.url:"",startTime:"",endTime:"",priority:[1,2,3,4].includes(it.priority)?it.priority:4,createdAt:todayStr(),addedBy:"claude"};
+        const spec=it.task&&typeof it.task==="object"?it.task:{};
+        const tk={id:"task_"+(Date.now()+i),name:it.name.trim().slice(0,200),
+          freq:validFreq(spec.freq)?JSON.parse(JSON.stringify(spec.freq)):{type:"once",year:d[0],month:d[1]-1,date:d[2]},
+          rollover:typeof spec.rollover==="boolean"?spec.rollover:true,url:typeof it.url==="string"?it.url:"",
+          startTime:/^\d{2}:\d{2}$/.test(spec.startTime||"")?spec.startTime:"",endTime:/^\d{2}:\d{2}$/.test(spec.endTime||"")?spec.endTime:"",
+          priority:[1,2,3,4].includes(it.priority)?it.priority:4,
+          createdAt:/^\d{4}-\d{2}-\d{2}$/.test(spec.createdAt||"")?spec.createdAt:todayStr(),addedBy:"claude"};
+        if(/^\d{4}-\d{2}-\d{2}$/.test(spec.endDate||"")) tk.endDate=spec.endDate;
         if(it.key) tk.srcKey=it.key;
-        cat.tasks.push(tk);
+        const rt=it.routineId?(cat.routines||[]).find(r=>r.id===it.routineId):null;
+        if(it.routineId&&!rt) return; // routine gone: leave it queued
+        if(rt){rt.tasks=rt.tasks||[];rt.tasks.push(tk);}
+        else{cat.tasks=cat.tasks||[];cat.tasks.push(tk);}
         added++;
       }
       handled.push(row.id);
@@ -492,10 +533,23 @@ async function mergeInbox(){
       if(!(await sbSet("categories",_cats))) return true; // keep the queue; next load finishes the job
     }
     if(skips&&!(await sbSet("all_checks",_checks))) return true;
+    if(habits){ls.set("custom_backup",_custom);if(!(await sbSet("custom_data",_custom))) return true;}
     for(const id of handled) await sbDel(encodeURIComponent(id));
-    return added+skips>0;
+    return added+skips+habits>0;
   }catch(e){console.error("inbox",e);return false;}
   finally{_inboxBusy=false;}
+}
+// A frequency queued by Claude must be one the task form could have made.
+function validFreq(f){
+  if(!f||typeof f!=="object") return false;
+  const n=(v,lo,hi)=>Number.isInteger(v)&&v>=lo&&v<=hi;
+  if(f.type==="daily") return true;
+  if(f.type==="days") return Array.isArray(f.days)&&f.days.length>0&&f.days.every(d=>n(d,0,6));
+  if(f.type==="weekly") return n(f.day,0,6);
+  if(f.type==="monthly") return n(f.date,1,31);
+  if(f.type==="annually") return n(f.month,0,11)&&n(f.date,1,31);
+  if(f.type==="once") return n(f.year,2000,2100)&&n(f.month,0,11)&&n(f.date,1,31);
+  return false;
 }
 function saveSettings(){ls.set("settings_backup",_settings);sbSet("settings",_settings);}
 function showDayProgress(){return _settings.showDayProgress!==false;}
@@ -521,6 +575,8 @@ function toggle(catId,tk){
   c[key]=!c[key];saveChks(c);renderHeader();renderMain();
 }
 function getHab(wk,day,t,i){return cu()[wk+":"+day+":hab_"+t+"_"+i]||""}
+// Habit slots live in custom_data. Saved only when it was read fresh, so a failed load can't wipe the others.
+function saveCu(c){ls.set("custom_backup",c);if(_customFresh)sbSet("custom_data",c);}
 function setHab(wk,day,t,i,v){const c=cu();c[wk+":"+day+":hab_"+t+"_"+i]=v;saveCu(c)}
 
 // ── Frequency ──────────────────────────────────────────────────────────────────
